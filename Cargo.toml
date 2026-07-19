@@ -7,3 +7,4 @@ edition = "2024"
 rustls = { version = "0.23.31", default-features = false, features = ["aws_lc_rs", "std", "logging", "prefer-post-quantum"] }
 tokio = { version = "1.52.4", features = ["full"] }
 tokio-rustls = "0.26.4"
+webpki-roots = "1"
