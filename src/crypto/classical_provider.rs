@@ -8,8 +8,8 @@ use std::sync::Arc;
 use crate::crypto::algorithm_provider::AlgorithmProvider;
 use rustls::{ClientConfig, ServerConfig};
 use rustls::crypto::aws_lc_rs;
-use rustls::CipherSuite;
-use rustls::NamedGroup;
+use crate::crypto::profiles::classical::cipher_suites;
+use crate::crypto::profiles::classical::kx_groups;
 use rustls::version;
 use rustls::RootCertStore;
 
@@ -33,16 +33,20 @@ impl AlgorithmProvider for ClassicalProvider {
 
         let mut my_crypto_provider = aws_lc_rs::default_provider();
 
+        let supported_cipher_suites = cipher_suites::supported_cipher_suites();
+
         my_crypto_provider.cipher_suites.retain(|suite| {
 
-            matches!(suite.suite(), CipherSuite::TLS13_AES_128_GCM_SHA256 | CipherSuite::TLS13_AES_256_GCM_SHA384 | CipherSuite::TLS13_CHACHA20_POLY1305_SHA256)
+            supported_cipher_suites.contains(&suite.suite())
 
         });
 
 
+        let supported_kx_groups = kx_groups::supported_kx_groups();
+
         my_crypto_provider.kx_groups.retain(|group| {
 
-            matches!(group.name(), NamedGroup::secp256r1 | NamedGroup::secp384r1 | NamedGroup::secp521r1 | NamedGroup::X25519 | NamedGroup::X448 | NamedGroup::FFDHE2048 | NamedGroup::FFDHE3072 | NamedGroup::FFDHE4096 | NamedGroup::FFDHE6144 | NamedGroup::FFDHE8192)
+            supported_kx_groups.contains(&group.name())
 
         });
 

@@ -3,3 +3,4 @@ pub mod classical_provider;
 pub mod crypto_mode;
 pub mod crypto_selector;
 pub mod post_quantum_provider;
+pub mod profiles;
