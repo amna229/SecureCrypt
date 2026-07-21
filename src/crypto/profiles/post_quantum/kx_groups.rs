@@ -1,10 +1,12 @@
-use rustls::NamedGroup;
+use rustls::crypto::aws_lc_rs;
+use rustls::crypto::SupportedKxGroup;
 
+pub fn supported_kx_groups() -> Vec<&'static dyn SupportedKxGroup> {
 
-pub fn supported_kx_groups() -> &'static [NamedGroup] {
+    vec![
 
-    &[
-        todo!()
+        aws_lc_rs::kx_group::MLKEM768,
+        aws_lc_rs::kx_group::MLKEM1024,
+        
     ]
-
 }

@@ -4,11 +4,10 @@
 // mecanismos criptográficos clásicos.
 
 use std::sync::Arc;
-
 use crate::crypto::algorithm_provider::AlgorithmProvider;
 use rustls::{ClientConfig, ServerConfig};
 use rustls::crypto::aws_lc_rs;
-use crate::crypto::profiles::classical::cipher_suites;
+use crate::crypto::profiles::cipher_suites;
 use crate::crypto::profiles::classical::kx_groups;
 use rustls::version;
 use rustls::RootCertStore;
