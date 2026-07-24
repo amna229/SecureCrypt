@@ -1,19 +1,13 @@
-use rustls::NamedGroup;
+use rustls::crypto::aws_lc_rs;
+use rustls::crypto::SupportedKxGroup;
 
 
-pub fn supported_kx_groups() -> &'static [NamedGroup] {
+pub fn supported_kx_groups() -> Vec<&'static dyn SupportedKxGroup> {
 
-    &[
-        NamedGroup::secp256r1,
-        NamedGroup::secp384r1,
-        NamedGroup::secp521r1,
-        NamedGroup::X25519,
-        NamedGroup::X448,
-        NamedGroup::FFDHE2048,
-        NamedGroup::FFDHE3072,
-        NamedGroup::FFDHE4096,
-        NamedGroup::FFDHE6144,
-        NamedGroup::FFDHE8192,
+    vec![
+        aws_lc_rs::kx_group::SECP256R1,
+        aws_lc_rs::kx_group::SECP384R1,
+        aws_lc_rs::kx_group::X25519,
     ]
 
 }

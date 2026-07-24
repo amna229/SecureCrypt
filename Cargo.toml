@@ -4,7 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+axum = "0.8.9"
 rustls = { version = "0.23.31", default-features = false, features = ["aws_lc_rs", "std", "logging", "prefer-post-quantum"] }
+rustls-pemfile = "2.2.0"
+serde = { version = "1.0.229", features = ["derive"] }
 tokio = { version = "1.52.4", features = ["full"] }
 tokio-rustls = "0.26.4"
 webpki-roots = "1"
+tokio-util = { version = "0.7", features = ["rt"] }
