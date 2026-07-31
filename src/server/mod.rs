@@ -3,6 +3,7 @@ use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
 use crate::crypto::algorithm_provider::AlgorithmProvider;
 use tokio_util::sync::CancellationToken;
+use tokio::io::AsyncReadExt;
 
 pub async fn run_server(provider: Box<dyn AlgorithmProvider>, addr: &str, cancellation_token: CancellationToken, selected_cipher_suites: &[String], selected_kx_groups: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 
@@ -23,6 +24,10 @@ pub async fn run_server(provider: Box<dyn AlgorithmProvider>, addr: &str, cancel
 
             println!("Server shutting down..");
 
+            //cancelo los clientes aqui
+
+
+
             break Ok(());
 
         }
@@ -39,9 +44,46 @@ pub async fn run_server(provider: Box<dyn AlgorithmProvider>, addr: &str, cancel
 
                 match acceptor.accept(stream).await {
 
-                    Ok(_tls_stream) => {
+                    Ok(mut tls_stream) => {
 
-                        println!("TLS connection established with {}", client_addr);
+                        println!("Server: TLS connection established with {}", client_addr);
+
+                        let mut buffer = [0u8; 1024];
+
+                        loop{
+
+                            let bytes_read = tls_stream.read(&mut buffer).await;
+
+                            match bytes_read {
+
+                                Ok(bytes_read) => {
+
+                                    if bytes_read == 0 {
+
+                                        println!("Server: Connection closed by client {}", client_addr);
+
+                                        break;
+
+                                    } else {
+
+                                        println!("Server: Received {} bytes from client {}", bytes_read, client_addr);
+
+                                    }
+
+                                }
+
+                                Err(e) => {
+
+                                    eprintln!("Error reading from TLS stream: {}", e);
+
+                                    break;
+
+                                }
+
+                            }
+
+
+                        }
 
                     }
 

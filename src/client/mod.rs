@@ -4,7 +4,7 @@ use tokio_rustls::TlsConnector;
 use std::sync::Arc;
 use rustls::pki_types::ServerName;
 use crate::crypto::algorithm_provider::AlgorithmProvider;
-use tokio_util::sync::CancellationToken;
+use tokio::io::AsyncReadExt;
 
 
 
@@ -18,7 +18,7 @@ async fn connect_to_server_tcp(addr: &str) -> Result<TcpStream, Box<dyn Error>>{
 
 
 
-pub async fn run_client(provider: Box<dyn AlgorithmProvider>, addr: &str, domain: &str, cancellation_token: CancellationToken, selected_cipher_suites: &[String], selected_kx_groups: &[String]) -> Result<(), Box<dyn Error>> {
+pub async fn run_client(provider: Box<dyn AlgorithmProvider>, addr: &str, domain: &str, selected_cipher_suites: &[String], selected_kx_groups: &[String]) -> Result<(), Box<dyn Error>> {
 
     let config = provider.build_client_config(selected_cipher_suites, selected_kx_groups)?;
 
@@ -28,15 +28,26 @@ pub async fn run_client(provider: Box<dyn AlgorithmProvider>, addr: &str, domain
 
     let server_name = ServerName::try_from(domain.to_string())?;
 
-    let tls_stream = tls_connector.connect(server_name, tcp_stream).await?;
+    let mut tls_stream = tls_connector.connect(server_name, tcp_stream).await?;
 
-    println!("TLS connection established with {}", addr);
+    println!("Client: TLS connection established with {}", addr);
 
-    cancellation_token.cancelled().await;
+    let mut buffer = [0u8; 1024];
 
-    println!("Client disconnected from {}", addr);
+    //bucle que lee datos del servidor hasta que se cierra la conexión
+    loop{
 
-    drop(tls_stream);
+        let bytes_read = tls_stream.read(&mut buffer).await?;
+
+        if bytes_read == 0 {
+
+            println!("Client: Connection closed by server");
+
+            break;
+
+        }   
+
+    }
 
     Ok(())
 }

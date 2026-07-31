@@ -36,7 +36,6 @@ pub struct ClientConfig {
 pub struct DashboardState {
 
     pub server_cancellation_token: Mutex<Option<CancellationToken>>,
-    pub client_cancellation_token: Mutex<Option<CancellationToken>>
 
 }
 
@@ -46,7 +45,7 @@ pub struct DashboardState {
 pub async fn run_dashboard() -> Result<(), Box<dyn std::error::Error>> {
     
 
-    let state = Arc::new(DashboardState {server_cancellation_token:Mutex::new(None), client_cancellation_token: Mutex::new(None)}
+    let state = Arc::new(DashboardState {server_cancellation_token:Mutex::new(None)}
 );
 
     let app = Router::new()
@@ -179,42 +178,9 @@ async fn save_server_config(State(state): State<Arc<DashboardState>>, Json(confi
 
 
 
-async fn save_client_config(State(state): State<Arc<DashboardState>>, Json(config): Json<ClientConfig>) {
+async fn save_client_config(Json(config): Json<ClientConfig>) {
 
     println!("{:#?}", config);
-
-
-    // Detengo el cliente anterior si existe
-    let old_token = {
-        
-        let guard = state.client_cancellation_token.lock().await;
-
-        guard.clone()
-
-    };
-
-
-    if let Some(token) = old_token {
-
-        println!("Stopping previous client...");
-
-        token.cancel();
-
-    }
-
-
-    //creo un nuevo token de cancelación para el nuevo cliente
-    let cancellation_token = tokio_util::sync::CancellationToken::new();
-
-
-    //guardo el nuevo token de cancelación en el estado compartido
-    {
-
-        let mut guard = state.client_cancellation_token.lock().await;
-
-        *guard =  Some(cancellation_token.clone());
-
-    }
 
     println!("Starting {} client(s)...", config.num_connections);
 
@@ -227,20 +193,18 @@ async fn save_client_config(State(state): State<Arc<DashboardState>>, Json(confi
 
 
 
-    // Creamos num_connections clientes independientes
+    // Creo num_connections clientes independientes
     for client_id in 0..config.num_connections {
 
-        // Clonar los datos
+        // Clono los datos
         let provider = crate::crypto::crypto_selector::get_crypto_provider(config.key_exchange);
-
-        let cancellation_token = cancellation_token.clone();
 
         let selected_cipher_suites = selected_cipher_suites.clone();
 
         let selected_kx_groups = selected_kx_groups.clone();
 
 
-        // Lanzar cliente independiente
+        // Lanzo cliente independiente
         tokio::spawn(async move {
 
             println!("Starting client {}...", client_id + 1);
@@ -250,7 +214,6 @@ async fn save_client_config(State(state): State<Arc<DashboardState>>, Json(confi
                     provider,
                     "127.0.0.1:8443",
                     "localhost",
-                    cancellation_token,
                     &selected_cipher_suites,
                     &selected_kx_groups,
                 )
