@@ -4,8 +4,7 @@ use tokio_rustls::TlsConnector;
 use std::sync::Arc;
 use rustls::pki_types::ServerName;
 use crate::crypto::algorithm_provider::AlgorithmProvider;
-use tokio::io::AsyncReadExt;
-
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 
 async fn connect_to_server_tcp(addr: &str) -> Result<TcpStream, Box<dyn Error>>{
@@ -32,6 +31,8 @@ pub async fn run_client(provider: Box<dyn AlgorithmProvider>, addr: &str, domain
 
     println!("Client: TLS connection established with {}", addr);
 
+    tls_stream.write_all(b"PING").await?;
+
     let mut buffer = [0u8; 1024];
 
     //bucle que lee datos del servidor hasta que se cierra la conexión
@@ -45,7 +46,11 @@ pub async fn run_client(provider: Box<dyn AlgorithmProvider>, addr: &str, domain
 
             break;
 
-        }   
+        }else if &buffer[..bytes_read] == b"PONG"{
+
+            println!("Client: Received PONG from server");
+
+        }
 
     }
 

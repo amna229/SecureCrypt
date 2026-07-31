@@ -3,7 +3,8 @@ use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
 use crate::crypto::algorithm_provider::AlgorithmProvider;
 use tokio_util::sync::CancellationToken;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
 
 pub async fn run_server(provider: Box<dyn AlgorithmProvider>, addr: &str, cancellation_token: CancellationToken, selected_cipher_suites: &[String], selected_kx_groups: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 
@@ -23,10 +24,6 @@ pub async fn run_server(provider: Box<dyn AlgorithmProvider>, addr: &str, cancel
         _ = cancellation_token.cancelled() => {
 
             println!("Server shutting down..");
-
-            //cancelo los clientes aqui
-
-
 
             break Ok(());
 
@@ -67,6 +64,24 @@ pub async fn run_server(provider: Box<dyn AlgorithmProvider>, addr: &str, cancel
                                     } else {
 
                                         println!("Server: Received {} bytes from client {}", bytes_read, client_addr);
+
+                                        let msg = &buffer[..bytes_read];
+
+                                        if msg == b"PING"{
+
+                                            println!("Server: Received PING from {}", client_addr);
+
+                                            if let Err(e) = tls_stream.write_all(b"PONG").await {
+
+                                                eprintln!("Error sending PONG to client {}: {}", client_addr, e);
+
+                                                break;
+
+                                            }
+
+                                            println!("Server: Sent PONG to client {}", client_addr);
+
+                                        }                                        
 
                                     }
 
