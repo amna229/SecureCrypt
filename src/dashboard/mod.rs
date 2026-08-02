@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use axum::extract::State;
-
+use std::error::Error;
 
 
 
@@ -42,7 +42,7 @@ pub struct DashboardState {
 
 
 
-pub async fn run_dashboard() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn run_dashboard() -> Result<(), Box<dyn Error + Send + Sync>> {
     
 
     let state = Arc::new(DashboardState {server_cancellation_token:Mutex::new(None)}

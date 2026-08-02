@@ -672,6 +672,8 @@ name = "tfg_project"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "hyper",
+ "hyper-util",
  "rustls",
  "rustls-pemfile",
  "serde",
