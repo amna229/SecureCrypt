@@ -6,9 +6,9 @@
 // No conoce cliente, servidor ni Tokio.
 
 use crate::crypto::algorithm_provider::AlgorithmProvider;
-use crate::crypto::classical_provider::ClassicalProvider;
+use crate::crypto::provider::classical_provider::ClassicalProvider;
 use crate::crypto::crypto_mode::CryptoMode;
-use crate::crypto::post_quantum_provider::PostQuantumProvider;
+use crate::crypto::provider::post_quantum_provider::PostQuantumProvider;
 
 pub fn get_crypto_provider(mode: CryptoMode) -> Box<dyn AlgorithmProvider> {
 

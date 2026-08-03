@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <link
+        rel="preconnect"
+        href="https://fonts.googleapis.com"
+    >
+
+    <link
+        rel="preconnect"
+        href="https://fonts.googleapis.com"
+        crossorigin
+    >
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+    >
+
+    <link
+        rel="stylesheet"
+        href="/static/css/common.css"
+    >
+
+    <title>Configuración del servidor</title>
+
+</head>
+
+
+<body>
+
+    <div class="main-content-box">
+
+
+        <div class="tabs">
+
+            <button
+                class="tab active"
+                onclick="window.location.href='/server'"
+            >
+                Servidor
+            </button>
+
+            <button
+                class="tab"
+                onclick="window.location.href='/client'"
+            >
+                Cliente
+            </button>
+
+        </div>
+
+
+        <h1>
+            Configuración del servidor
+        </h1>
+
+
+        <h3>
+            Por favor selecciona el modo de intercambio de clave:
+        </h3>
+
+
+        <div class="radio-group">
+
+            <label class="radio-option">
+
+                <input
+                    type="radio"
+                    name="key_exchange"
+                    value="classical"
+                    checked
+                >
+
+                Clásico
+
+            </label>
+
+
+            <label class="radio-option">
+
+                <input
+                    type="radio"
+                    name="key_exchange"
+                    value="post_quantum"
+                >
+
+                Post-Cuántico
+
+            </label>
+
+        </div>
+
+
+        <h3>
+            Cipher Suites
+        </h3>
+
+
+        <div class="options-section">
+
+            <label class="checkbox-option">
+
+                <input
+                    type="checkbox"
+                    name="cipher_suites"
+                    value="TLS13_AES_256_GCM_SHA384"
+                    checked
+                >
+
+                TLS13_AES_256_GCM_SHA384
+
+            </label>
+
+
+            <label class="checkbox-option">
+
+                <input
+                    type="checkbox"
+                    name="cipher_suites"
+                    value="TLS13_AES_128_GCM_SHA256"
+                    checked
+                >
+
+                TLS13_AES_128_GCM_SHA256
+
+            </label>
+
+
+            <label class="checkbox-option">
+
+                <input
+                    type="checkbox"
+                    name="cipher_suites"
+                    value="TLS13_CHACHA20_POLY1305_SHA256"
+                    checked
+                >
+
+                TLS13_CHACHA20_POLY1305_SHA256
+
+            </label>
+
+        </div>
+
+
+        <div
+            id="cipher-error"
+            class="error-message"
+        >
+            Debes seleccionar al menos una Cipher Suite.
+        </div>
+
+
+        <h3>
+            KX Groups
+        </h3>
+
+
+        <div
+            id="classical-kx"
+            class="options-section"
+        >
+
+            <label class="checkbox-option">
+
+                <input
+                    type="checkbox"
+                    name="kx_groups"
+                    value="secp256r1"
+                    checked
+                >
+
+                SECP256R1
+
+            </label>
+
+
+            <label class="checkbox-option">
+
+                <input
+                    type="checkbox"
+                    name="kx_groups"
+                    value="secp384r1"
+                    checked
+                >
+
+                SECP384R1
+
+            </label>
+
+
+            <label class="checkbox-option">
+
+                <input
+                    type="checkbox"
+                    name="kx_groups"
+                    value="X25519"
+                    checked
+                >
+
+                X25519
+
+            </label>
+
+        </div>
+
+
+        <div
+            id="post-quantum-kx"
+            class="options-section"
+        >
+
+            <label class="checkbox-option">
+
+                <input
+                    type="checkbox"
+                    name="kx_groups"
+                    value="MLKEM768"
+                    checked
+                >
+
+                MLKEM768
+
+            </label>
+
+
+            <label class="checkbox-option">
+
+                <input
+                    type="checkbox"
+                    name="kx_groups"
+                    value="MLKEM1024"
+                    checked
+                >
+
+                MLKEM1024
+
+            </label>
+
+        </div>
+
+
+        <div
+            id="kx-error"
+            class="error-message"
+        >
+            Debes seleccionar al menos un KX Group.
+        </div>
+
+
+        <button
+            id="save-button"
+            class="save-button"
+            type="button"
+        >
+            Guardar
+        </button>
+
+
+    </div>
+
+
+    <script src="/static/js/server.js"></script>
+
+</body>
+
+</html>

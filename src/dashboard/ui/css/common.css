@@ -1,0 +1,191 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    font-family: "Space Grotesk", sans-serif;
+
+    background: linear-gradient(
+        135deg,
+        #0f172a,
+        #1e1b4b
+    );
+
+    color: white;
+}
+
+.main-content-box {
+    width: 90%;
+    max-width: 800px;
+
+    padding: 50px 60px;
+
+    background: rgba(255, 255, 255, 0.08);
+
+    border: 1px solid rgba(255, 255, 255, 0.15);
+
+    border-radius: 20px;
+
+    box-shadow:
+        0 20px 50px rgba(0, 0, 0, 0.35);
+
+    backdrop-filter: blur(10px);
+}
+
+h1 {
+    margin: 0 0 30px 0;
+
+    font-size: 36px;
+
+    font-weight: 600;
+
+    text-align: center;
+}
+
+h3 {
+    margin-top: 30px;
+    margin-bottom: 20px;
+
+    font-size: 20px;
+}
+
+.tabs {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+
+    margin-bottom: 40px;
+}
+
+.tab {
+    padding: 12px 30px;
+
+    border: none;
+
+    border-bottom: 2px solid transparent;
+
+    background: transparent;
+
+    color: #cbd5e1;
+
+    font-family: inherit;
+
+    font-size: 16px;
+
+    cursor: pointer;
+
+    transition:
+        color 0.2s,
+        border-color 0.2s;
+}
+
+.tab:hover {
+    color: white;
+}
+
+.tab.active {
+    color: white;
+
+    border-bottom: 2px solid #6366f1;
+}
+
+.radio-group {
+    display: flex;
+    gap: 30px;
+}
+
+.radio-option,
+.checkbox-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    margin-bottom: 12px;
+
+    color: #e2e8f0;
+
+    cursor: pointer;
+}
+
+input[type="radio"],
+input[type="checkbox"] {
+    width: 17px;
+    height: 17px;
+
+    accent-color: #6366f1;
+
+    cursor: pointer;
+}
+
+.options-section {
+    margin-top: 10px;
+}
+
+.error-message {
+    display: none;
+
+    margin-top: 15px;
+
+    color: #f87171;
+
+    font-size: 15px;
+}
+
+.error-message.visible {
+    display: block;
+}
+
+.save-button {
+    margin-top: 30px;
+
+    padding: 14px 40px;
+
+    border: none;
+
+    border-radius: 10px;
+
+    background: linear-gradient(
+        135deg,
+        #6366f1,
+        #8b5cf6
+    );
+
+    color: white;
+
+    font-family: inherit;
+
+    font-size: 17px;
+
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition:
+        transform 0.2s,
+        box-shadow 0.2s,
+        opacity 0.2s;
+}
+
+.save-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+
+    box-shadow:
+        0 10px 25px rgba(99, 102, 241, 0.4);
+}
+
+.save-button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.save-button:disabled {
+    opacity: 0.4;
+
+    cursor: not-allowed;
+}

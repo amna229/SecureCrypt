@@ -1,0 +1,63 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    font-family: "Space Grotesk", sans-serif;
+
+    background: linear-gradient(
+        135deg,
+        #0f172a,
+        #1e1b4b
+    );
+
+    color: white;
+}
+
+.main-content-box {
+    text-align: center;
+
+    padding: 60px 80px;
+
+    background: rgba(255, 255, 255, 0.08);
+
+    border: 1px solid rgba(255, 255, 255, 0.15);
+
+    border-radius: 20px;
+
+    box-shadow:
+        0 20px 50px rgba(0, 0, 0, 0.35);
+
+    backdrop-filter: blur(10px);
+}
+
+h1 {
+    margin: 0 0 15px 0;
+
+    font-size: 36px;
+
+    font-weight: 600;
+
+    letter-spacing: -0.5px;
+}
+
+.enter-button {
+    display: inline-block;
+
+    padding: 14px 40px;
+
+    border-radius: 10px;
+
+    background: #6366f1;
+
+    color: white;
+
+    text-decoration: none;
+}
