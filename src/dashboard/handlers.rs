@@ -10,7 +10,7 @@ use crate::dashboard::state::{
     ServerConfig,
 };
 use crate::dashboard::ui::templates;
-use crate::dashboard::services::business_logic;
+use crate::dashboard::services::manager::Manager;
 
 
 
@@ -48,6 +48,13 @@ pub async fn results() -> Html<&'static str> {
 
 pub async fn save_server_config(State(state): State<Arc<DashboardState>>, Json(config): Json<ServerConfig>){
 
+    if state.is_evaluation_running().await {
+
+        println!("Cannot modify server configuration while an evaluation is running");
+        return;
+
+    }
+
     println!("{:#?}", config);
 
     let mut server_config = state.server_config.lock().await;
@@ -61,6 +68,13 @@ pub async fn save_server_config(State(state): State<Arc<DashboardState>>, Json(c
 
 pub async fn save_client_config(State(state): State<Arc<DashboardState>>, Json(config): Json<ClientConfig>){
 
+    if state.is_evaluation_running().await {
+
+        println!("Cannot modify client configuration while an evaluation is running");
+        return;
+
+    }
+
     println!("{:#?}", config);
 
     let mut client_configs = state.client_configs.lock().await;
@@ -72,23 +86,25 @@ pub async fn save_client_config(State(state): State<Arc<DashboardState>>, Json(c
 
 
 
-pub async fn start_business_logic(State(state): State<Arc<DashboardState>>){
+pub async fn start_evaluation(State(state): State<Arc<DashboardState>>){
 
-    println!("Starting business logic...");
+    println!("Starting evaluation environment...");
 
-    match business_logic::start(state).await {
+    let manager = Manager::new(state.clone());
+
+
+    match manager.start().await{
 
         Ok(()) => {
-            println!(
-                "Business logic started successfully"
-            );
+
+            println!("Evaluation environment started successfully");
+
         }
 
         Err(error) => {
-            eprintln!(
-                "Cannot start business logic: {}",
-                error
-            );
+
+            eprintln!("Cannot start evaluation environment: {}", error);
+
         }
 
     }

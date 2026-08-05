@@ -11,7 +11,7 @@ use crate::dashboard::{
         save_client_config,
         save_server_config,
         server,
-        start_business_logic
+        start_evaluation
     },
     state::DashboardState
 };
@@ -28,7 +28,7 @@ pub fn create_router(state: Arc<DashboardState>) -> Router {
         .route("/results", get(results))
         .route("/info/server", post(save_server_config))
         .route("/info/client", post(save_client_config))
-        .route("/bl/start", post(start_business_logic))
+        .route("/eval/start", post(start_evaluation))
         .nest_service("/static", ServeDir::new("src/dashboard/ui"))
         .with_state(state)
 

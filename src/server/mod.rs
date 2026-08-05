@@ -3,11 +3,11 @@ use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
 use crate::crypto::algorithm_provider::AlgorithmProvider;
 use tokio_util::sync::CancellationToken;
+use tokio::sync::oneshot;
 
 
 
-
-pub async fn run_server(provider: Box<dyn AlgorithmProvider>, addr: &str, cancellation_token: CancellationToken, selected_cipher_suites: &[String], selected_kx_groups: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn run_server(provider: Box<dyn AlgorithmProvider>, addr: &str, cancellation_token: CancellationToken, selected_cipher_suites: &[String], selected_kx_groups: &[String], ready_sender: oneshot::Sender<()>) -> Result<(), Box<dyn std::error::Error>> {
 
     let config = provider.build_server_config(selected_cipher_suites, selected_kx_groups)?;
 
@@ -16,6 +16,8 @@ pub async fn run_server(provider: Box<dyn AlgorithmProvider>, addr: &str, cancel
     let listener = TcpListener::bind(addr).await?;
 
     println!("tfg-project-server up on {}", addr);
+
+    let _ = ready_sender.send(());
 
 
     loop {
