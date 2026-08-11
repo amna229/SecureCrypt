@@ -157,10 +157,10 @@ async function saveConfiguration() {
             }
         );
 
-    console.log(
-        "Respuesta del servidor:",
-        response.status
-    );
+    console.log("Respuesta del servidor:", response.status);
+
+    await checkClientConfiguration();
+
 }
 
 
@@ -209,4 +209,63 @@ saveButton.addEventListener(
     saveConfiguration
 );
 
+
+
+async function checkClientConfiguration() {
+
+    const response = await fetch("/info/client/status");
+
+
+    const configured = await response.json();
+
+
+    const applicationButton =
+        document.getElementById(
+            "application-button"
+        );
+
+
+    if(configured){
+
+        applicationButton.disabled = false;
+
+        applicationButton.onclick = async () => {
+
+            applicationButton.disabled = true;
+
+            applicationButton.innerHTML = "Loading...";
+
+
+            const response =
+                await fetch(
+                    "/application/start",
+                    {
+                        method: "POST"
+                    }
+                );
+
+
+            if(response.ok){
+
+                window.location.assign(applicationButton.dataset.url);
+
+            }
+            else {
+
+                applicationButton.disabled = false;
+
+                applicationButton.innerHTML = "Go to<br>Application";
+
+                alert("Error starting application");
+
+            }
+
+        };
+
+    }
+
+}
+
+
 updateKxGroups();
+checkClientConfiguration();

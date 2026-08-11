@@ -64,7 +64,7 @@ pub fn build_crypto_provider(
 
 
 
-pub fn build_client_config(crypto_provider: CryptoProvider) -> Result<ClientConfig, Box<dyn std::error::Error>> {
+pub fn build_client_config(crypto_provider: CryptoProvider) -> Result<ClientConfig, Box<dyn std::error::Error + Send + Sync>> {
 
     let root_cert_store =
         load_root_cert_store()?;
@@ -84,7 +84,7 @@ pub fn build_client_config(crypto_provider: CryptoProvider) -> Result<ClientConf
 
 
 
-pub fn build_server_config(crypto_provider: CryptoProvider) -> Result<ServerConfig, Box<dyn std::error::Error>> {
+pub fn build_server_config(crypto_provider: CryptoProvider) -> Result<ServerConfig, Box<dyn std::error::Error + Send + Sync>> {
 
     let cert_chain =
         load_server_certificate()?;
@@ -109,7 +109,7 @@ pub fn build_server_config(crypto_provider: CryptoProvider) -> Result<ServerConf
 
 
 
-fn load_root_cert_store() -> Result<RootCertStore, Box<dyn std::error::Error>>{
+fn load_root_cert_store() -> Result<RootCertStore, Box<dyn std::error::Error + Send + Sync>> {
 
     let ca_file = File::open(ROOT_CA_PATH)?;
     let mut ca_reader = BufReader::new(ca_file);
@@ -129,7 +129,7 @@ fn load_root_cert_store() -> Result<RootCertStore, Box<dyn std::error::Error>>{
 
 
 
-fn load_server_certificate() -> Result<Vec<CertificateDer<'static>>, Box<dyn std::error::Error>>{
+fn load_server_certificate() -> Result<Vec<CertificateDer<'static>>, Box<dyn std::error::Error + Send + Sync>>{
 
     let cert_file = File::open(SERVER_CERTIFICATE_PATH)?;
     let mut cert_reader = BufReader::new(cert_file);
@@ -142,7 +142,7 @@ fn load_server_certificate() -> Result<Vec<CertificateDer<'static>>, Box<dyn std
 
 
 
-fn load_server_private_key() -> Result<rustls::pki_types::PrivateKeyDer<'static>, Box<dyn std::error::Error>>{
+fn load_server_private_key() -> Result<rustls::pki_types::PrivateKeyDer<'static>, Box<dyn std::error::Error + Send + Sync>>{
 
     let key_file = File::open(SERVER_PRIVATE_KEY_PATH)?;
     let mut key_reader = BufReader::new(key_file);

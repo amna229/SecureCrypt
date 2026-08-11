@@ -18,9 +18,9 @@ pub async fn run_dashboard() -> Result<(), Box<dyn Error + Send + Sync>>{
 
     let app = create_router(state);
 
-    let listener = TcpListener::bind("127.0.0.1:3000").await?;
+    let listener = TcpListener::bind("0.0.0.0:3000").await?;
 
-    println!("Dashboard at http://127.0.0.1:3000");
+    println!("Dashboard at http://0.0.0.0:3000");
 
     axum::serve(listener, app).await?;
 

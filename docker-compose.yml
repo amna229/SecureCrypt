@@ -1,0 +1,65 @@
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: tfg-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tfg
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: tfg-dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/tfg
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./simplified-pki:/app/simplified-pki
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: tfg-server
+    volumes:
+      - ./simplified-pki:/app/simplified-pki
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    container_name: tfg-client
+    depends_on:
+      - server
+    volumes:
+      - ./simplified-pki:/app/simplified-pki
+
+  application:
+    build: .
+    container_name: tfg-application
+    command: ["./application"]
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./simplified-pki:/app/simplified-pki
+      - ./src/application/ui:/app/src/application/ui
+
+volumes:
+  postgres_data:

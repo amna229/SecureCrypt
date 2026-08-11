@@ -7,7 +7,7 @@ use crate::crypto::algorithm_provider::AlgorithmProvider;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 
-async fn connect_to_server_tcp(addr: &str) -> Result<TcpStream, Box<dyn Error>>{
+async fn connect_to_server_tcp(addr: &str) -> Result<TcpStream, Box<dyn Error + Send + Sync>>{
     
     let stream = TcpStream::connect(addr).await?;
 
@@ -17,7 +17,7 @@ async fn connect_to_server_tcp(addr: &str) -> Result<TcpStream, Box<dyn Error>>{
 
 
 
-pub async fn run_client(provider: Box<dyn AlgorithmProvider>, addr: &str, domain: &str, selected_cipher_suites: &[String], selected_kx_groups: &[String]) -> Result<(), Box<dyn Error>> {
+pub async fn run_client(provider: Box<dyn AlgorithmProvider>, addr: &str, domain: &str, selected_cipher_suites: &[String], selected_kx_groups: &[String]) -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let config = provider.build_client_config(selected_cipher_suites, selected_kx_groups)?;
 

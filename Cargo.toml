@@ -15,3 +15,21 @@ tokio-util = { version = "0.7", features = ["rt"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 hyper = { version = "1", features = ["http1"] }
 tower-http = { version = "0.6", features = ["fs"] }
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "macros"] }
+uuid = { version = "1", features = ["v4"] }
+
+[[bin]]
+name = "application"
+path = "src/application_main.rs"
+
+[[bin]]
+name = "tfg_dashboard"
+path = "src/main.rs"
+
+[[bin]]
+name = "tfg_server"
+path = "src/server/server_main.rs"
+
+[[bin]]
+name = "tfg_client"
+path = "src/client/client_main.rs"

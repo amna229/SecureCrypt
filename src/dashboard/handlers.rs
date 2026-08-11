@@ -30,9 +30,13 @@ pub async fn server() -> Html<&'static str> {
 
 
 
-pub async fn client() -> Html<&'static str> {
+pub async fn client() -> Html<String> {
 
-    Html(templates::CLIENT)
+    let application_url = "https://127.0.0.1:8443";
+
+    let html = templates::CLIENT.replace("{{APPLICATION_URL}}", application_url);
+
+    Html(html)
 
 }
 
@@ -86,6 +90,25 @@ pub async fn save_client_config(State(state): State<Arc<DashboardState>>, Json(c
 
 
 
+pub async fn client_status(State(state): State<Arc<DashboardState>>) -> Json<bool> {
+
+    let clients = state.client_configs.lock().await;
+
+    Json(!clients.is_empty())
+
+}
+
+
+
+pub async fn application_status(State(state): State<Arc<DashboardState>>) -> Json<bool>{
+
+    let running = state.application_running.lock().await;
+    Json(*running)
+
+}
+
+
+
 pub async fn start_evaluation(State(state): State<Arc<DashboardState>>){
 
     println!("Starting evaluation environment...");
@@ -109,4 +132,15 @@ pub async fn start_evaluation(State(state): State<Arc<DashboardState>>){
 
     }
 
+}
+
+
+
+pub async fn start_application(State(state): State<Arc<DashboardState>>) -> Result<(), String> {
+
+    let manager = Manager::new(state);
+
+    manager.start().await?;
+
+    Ok(())
 }

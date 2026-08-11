@@ -56,7 +56,7 @@ impl Manager {
             return Err(e);
         }
 
-        self.start_clients(&client_configs).await;
+        self.start_clients(&client_configs);
 
         println!("Server and clients started successfully");
 
@@ -115,7 +115,7 @@ impl Manager {
             if let Err(error) =
                 run_server(
                     provider,
-                    "127.0.0.1:8443",
+                    "0.0.0.0:8443",
                     cancellation_token,
                     &cipher_suites,
                     &kx_groups,
@@ -133,17 +133,20 @@ impl Manager {
 
         }
 
+        let mut application_running = self.state.application_running.lock().await;
+        *application_running = true;
+
         Ok(())
 
     }
 
 
 
-    async fn start_clients(&self, configs: &[ClientConfig]){
+    fn start_clients(&self, configs: &[ClientConfig]){
 
         for config in configs {
 
-            self.start_client_configuration(config).await;
+            self.start_client_configuration(config);
 
         }
 
@@ -151,7 +154,7 @@ impl Manager {
 
 
 
-    async fn start_client_configuration(&self, config: &ClientConfig){
+    fn start_client_configuration(&self, config: &ClientConfig){
 
         let cipher_suites = config.cipher_suites.clone();
 
@@ -164,7 +167,7 @@ impl Manager {
                 config.key_exchange,
                 cipher_suites.clone(),
                 kx_groups.clone(),
-            ).await;
+            );
 
         }
 
@@ -172,7 +175,7 @@ impl Manager {
 
 
 
-    async fn start_client(
+    fn start_client(
         &self,
         client_id: u32,
         key_exchange: crate::crypto::crypto_mode::CryptoMode,
@@ -182,19 +185,27 @@ impl Manager {
 
         println!("Starting client {}...", client_id + 1);
 
+        tokio::spawn(async move {
+
         let provider = get_crypto_provider(key_exchange);
 
         if let Err(error) =
-            run_client(
-                provider,
-                "127.0.0.1:8443",
-                "localhost",
-                &cipher_suites,
-                &kx_groups,
-            ).await
-        {
-            eprintln!("Error in client {}: {}", client_id + 1, error);
-        }
+                run_client(
+                    provider,
+                    "0.0.0.0:8443",
+                    "localhost",
+                    &cipher_suites,
+                    &kx_groups,
+                ).await
+            {
+                eprintln!(
+                    "Error in client {}: {}",
+                    client_id + 1,
+                    error
+                );
+            }
+
+        });
 
     }
 

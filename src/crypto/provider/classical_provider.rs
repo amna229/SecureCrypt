@@ -45,7 +45,7 @@ impl AlgorithmProvider for ClassicalProvider {
 
      
 
-    fn build_client_config(&self, selected_cipher_suites: &[String], selected_kx_groups: &[String]) -> Result<ClientConfig, Box<dyn std::error::Error>> {
+    fn build_client_config(&self, selected_cipher_suites: &[String], selected_kx_groups: &[String]) -> Result<ClientConfig, Box<dyn std::error::Error + Send + Sync>> {
 
         let my_crypto_provider = self.build_crypto_provider(selected_cipher_suites, selected_kx_groups);
 
@@ -55,7 +55,7 @@ impl AlgorithmProvider for ClassicalProvider {
 
 
 
-    fn build_server_config(&self, selected_cipher_suites: &[String], selected_kx_groups: &[String]) -> Result<ServerConfig, Box<dyn std::error::Error>> {
+    fn build_server_config(&self, selected_cipher_suites: &[String], selected_kx_groups: &[String]) -> Result<ServerConfig, Box<dyn std::error::Error + Send + Sync>> {
 
         let my_crypto_provider = self.build_crypto_provider(selected_cipher_suites, selected_kx_groups);
 

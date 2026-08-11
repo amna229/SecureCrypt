@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Secure File Transfer</title>
+</head>
+
+<body>
+
+    <h1>Secure File Transfer</h1>
+
+    <h2>Operation</h2>
+
+    <label>
+        <input type="radio" name="operation" value="upload" checked>
+        Upload
+    </label>
+
+    <br>
+
+    <label>
+        <input type="radio" name="operation" value="download">
+        Download
+    </label>
+
+    <br><br>
+
+    <h2>File Generation</h2>
+
+    <label for="file-size">File size:</label>
+
+    <input
+        id="file-size"
+        type="number"
+        min="1"
+        value="1"
+    >
+
+    <select id="file-size-unit">
+        <option value="KB" selected>KB</option>
+        <option value="MB">MB</option>
+        <option value="GB">GB</option>
+    </select>
+
+    <br><br>
+
+    <label for="num-files">Number of files:</label>
+
+    <input
+        id="num-files"
+        type="number"
+        min="1"
+        value="1"
+    >
+
+    <br><br>
+
+    <button id="start-transfer">
+        Start
+    </button>
+
+    <div><p id="status"></p></div>
+
+</body>
+
+<script src="/application-static/js/myApp.js"></script>
+
+</html>
