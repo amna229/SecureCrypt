@@ -33,24 +33,6 @@ services:
       postgres:
         condition: service_healthy
 
-  server:
-    build:
-      context: .
-      dockerfile: Dockerfile.server
-    container_name: tfg-server
-    volumes:
-      - ./simplified-pki:/app/simplified-pki
-
-  client:
-    build:
-      context: .
-      dockerfile: Dockerfile.client
-    container_name: tfg-client
-    depends_on:
-      - server
-    volumes:
-      - ./simplified-pki:/app/simplified-pki
-
   application:
     build: .
     container_name: tfg-application

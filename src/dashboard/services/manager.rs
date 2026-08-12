@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use crate::client::run_client;
 use crate::crypto::crypto_selector::get_crypto_provider;
@@ -8,13 +7,15 @@ use crate::dashboard::state::{
     DashboardState,
     ServerConfig,
 };
-use crate::server::run_server;
-
+use bollard::Docker;
+use bollard::models::ContainerCreateBody;
+use bollard::query_parameters::CreateContainerOptionsBuilder;
 
 
 pub struct Manager {
 
-    state: Arc<DashboardState>
+    state: Arc<DashboardState>,
+    docker: Docker
 
 }
 
@@ -24,8 +25,20 @@ impl Manager {
 
     pub fn new(state: Arc<DashboardState>) -> Self {
 
-        Self { state }
+        let docker = Docker::connect_with_local_defaults().expect("Cannot connect to Docker");
 
+        Self { state, docker }
+
+    }
+
+
+
+    pub async fn test_docker(&self) -> Result<(), String> {
+
+        let version = self.docker.version().await.map_err(|e| e.to_string())?;
+        println!("Docker version: {:?}", version);
+
+        Ok(())
     }
 
 
@@ -33,11 +46,13 @@ impl Manager {
     pub async fn start(&self) -> Result<(), String>{
 
         let mut is_running = self.state.is_evaluation_running.lock().await;
+
         if *is_running {
 
             return Err("An evaluation is already running".to_string());
 
         }
+
         *is_running = true;
         drop(is_running);
 
@@ -45,11 +60,7 @@ impl Manager {
 
         let client_configs = self.get_client_configs().await?;
 
-        let cancellation_token = CancellationToken::new();
-
-        self.save_cancellation_token(cancellation_token.clone()).await;
-
-        if let Err(e) = self.start_server(&server_config, cancellation_token).await {
+        if let Err(e) = self.start_server(&server_config).await {
 
             let mut is_running = self.state.is_evaluation_running.lock().await;
             *is_running = false;
@@ -89,52 +100,55 @@ impl Manager {
 
 
 
-    async fn save_cancellation_token(&self, cancellation_token: CancellationToken){
+    async fn start_server(&self, config: &ServerConfig) -> Result<(), String>{
 
-        let mut token = self.state.server_cancellation_token.lock().await;
+        println!("Starting server...");
 
-        *token = Some(cancellation_token);
+        self.start_server_container(config).await?;
+
+
+        let mut application_running = self.state.application_running.lock().await;
+        *application_running = true;
+
+        Ok(())
+
     }
 
 
 
-    async fn start_server(&self, config: &ServerConfig, cancellation_token: CancellationToken) -> Result<(), String>{
+    async fn start_server_container(&self, config: &ServerConfig) -> Result<(), String> {
 
-        println!("Starting server...");
-
-        let provider = get_crypto_provider(config.key_exchange);
-
+        let provider = config.key_exchange;
         let cipher_suites = config.cipher_suites.clone();
-
         let kx_groups = config.kx_groups.clone();
 
-        let (ready_sender, ready_receiver) = oneshot::channel();
+        let env = vec![
+            format!("KEY_EXCHANGE={:?}", provider),
+            format!("CIPHER_SUITES={}", serde_json::to_string(&cipher_suites).unwrap()),
+            format!("KX_GROUPS={}", serde_json::to_string(&kx_groups).unwrap()),
+        ];
 
-        tokio::spawn(async move {
+        let container_config = ContainerCreateBody{image: Some("tfg_project-server:latest".to_string()), env: Some(env), ..Default::default()};
 
-            if let Err(error) =
-                run_server(
-                    provider,
-                    "0.0.0.0:8443",
-                    cancellation_token,
-                    &cipher_suites,
-                    &kx_groups,
-                    ready_sender,
-                ).await
-            {
-                eprintln!("Error running server: {}", error);
-            }
+        let options = CreateContainerOptionsBuilder::default().name("tfg-server").build();
+        
+        self.docker
+            .create_container(
+                Some(options),
+                container_config,
+            )
+            .await
+            .map_err(|e| e.to_string())?;
 
-        });
+        self.docker
+            .start_container(
+                "tfg-server",
+                None,
+            )
+            .await
+            .map_err(|e| e.to_string())?;
 
-        if ready_receiver.await.is_err() {
-
-            return Err("Server failed to start".to_string());
-
-        }
-
-        let mut application_running = self.state.application_running.lock().await;
-        *application_running = true;
+        println!("Server container started");
 
         Ok(())
 
@@ -211,24 +225,22 @@ impl Manager {
 
 
 
-    pub async fn stop(&self){
+    pub async fn stop(&self) -> Result<(), String> {
 
-        let mut token = self.state.server_cancellation_token.lock().await;
+        self.docker
+            .stop_container("tfg-server", None)
+            .await
+            .map_err(|e| e.to_string())?;
 
-        if let Some(cancellation_token) = token.take() {
+        let mut is_running = self.state.is_evaluation_running.lock().await;
+        *is_running = false;
 
-            cancellation_token.cancel();
+        let mut application_running = self.state.application_running.lock().await;
+        *application_running = false;
 
-            let mut is_running = self.state.is_evaluation_running.lock().await;
-            *is_running = false;
+        println!("Server container stopped");
 
-            println!("Server stopped successfully");
-
-        } else {
-
-            println!("No server is currently running");
-
-        }
+        Ok(())
 
     }
 

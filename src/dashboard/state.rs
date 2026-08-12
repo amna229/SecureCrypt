@@ -29,7 +29,6 @@ pub struct ClientConfig {
 
 pub struct DashboardState {
 
-    pub server_cancellation_token: Mutex<Option<CancellationToken>>,
     pub client_configs: Mutex<Vec<ClientConfig>>,
     pub server_config: Mutex<Option<ServerConfig>>,
     pub is_evaluation_running: Mutex<bool>,
@@ -45,7 +44,6 @@ impl DashboardState {
 
         Self {
 
-            server_cancellation_token: Mutex::new(None),
             client_configs: Mutex::new(Vec::new()),
             server_config: Mutex::new(None),
             is_evaluation_running: Mutex::new(false),
