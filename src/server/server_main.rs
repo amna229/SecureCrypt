@@ -7,6 +7,7 @@ use tfg_project::server::run_server;
 
 
 
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     
@@ -42,6 +43,10 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let cancellation_token = CancellationToken::new();
     let (ready_sender, _ready_receiver) = oneshot::channel();
 
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
+
+    let pool = sqlx::postgres::PgPoolOptions::new().connect(&database_url).await?;
+
     run_server(
         provider,
         "0.0.0.0:8443",
@@ -49,6 +54,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         &cipher_suites,
         &kx_groups,
         ready_sender,
+        pool
     )
     .await?;
 

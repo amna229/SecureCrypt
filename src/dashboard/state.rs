@@ -1,5 +1,5 @@
 use tokio::sync::Mutex;
-use tokio_util::sync::CancellationToken;
+use sqlx::PgPool;
 
 
 
@@ -32,7 +32,8 @@ pub struct DashboardState {
     pub client_configs: Mutex<Vec<ClientConfig>>,
     pub server_config: Mutex<Option<ServerConfig>>,
     pub is_evaluation_running: Mutex<bool>,
-    pub application_running: Mutex<bool>
+    pub application_running: Mutex<bool>,
+    pub db: PgPool
 
 }
 
@@ -40,14 +41,15 @@ pub struct DashboardState {
 
 impl DashboardState {
 
-    pub fn new() -> Self {
+    pub fn new(db: PgPool) -> Self {
 
         Self {
 
             client_configs: Mutex::new(Vec::new()),
             server_config: Mutex::new(None),
             is_evaluation_running: Mutex::new(false),
-            application_running: Mutex::new(false)
+            application_running: Mutex::new(false),
+            db
             
         }
     }

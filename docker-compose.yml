@@ -39,6 +39,8 @@ services:
     command: ["./application"]
     ports:
       - "8443:8443"
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/tfg
     volumes:
       - ./simplified-pki:/app/simplified-pki
       - ./src/application/ui:/app/src/application/ui

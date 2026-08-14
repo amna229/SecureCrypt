@@ -1,32 +1,23 @@
-use axum::{
-    extract::State,
-    response::Html,
-    Json,
-};
-use std::sync::Arc;
-use crate::dashboard::state::{
-    ClientConfig,
-    DashboardState,
-    ServerConfig,
-};
-use crate::dashboard::ui::templates;
 use crate::dashboard::services::manager::Manager;
+use crate::dashboard::state::{ClientConfig, DashboardState, ServerConfig};
+use crate::dashboard::ui::templates;
+use axum::{Json, extract::State, response::Html};
+use std::sync::Arc;
+
 
 
 
 pub async fn dashboard() -> Html<&'static str> {
 
     Html(templates::DASHBOARD)
-
 }
 
 
 
 pub async fn server() -> Html<&'static str> {
-
     Html(templates::SERVER)
-
 }
+
 
 
 
@@ -43,9 +34,7 @@ pub async fn client() -> Html<String> {
 
 
 pub async fn results() -> Html<&'static str> {
-
     Html(templates::RESULTS)
-
 }
 
 
@@ -65,7 +54,6 @@ pub async fn save_server_config(State(state): State<Arc<DashboardState>>, Json(c
     *server_config = Some(config);
 
     println!("Server configuration saved");
-
 }
 
 
@@ -95,7 +83,6 @@ pub async fn client_status(State(state): State<Arc<DashboardState>>) -> Json<boo
     let clients = state.client_configs.lock().await;
 
     Json(!clients.is_empty())
-
 }
 
 
@@ -104,34 +91,25 @@ pub async fn application_status(State(state): State<Arc<DashboardState>>) -> Jso
 
     let running = state.application_running.lock().await;
     Json(*running)
-
 }
 
 
 
-pub async fn start_evaluation(State(state): State<Arc<DashboardState>>){
+pub async fn start_evaluation(State(state): State<Arc<DashboardState>>) {
 
     println!("Starting evaluation environment...");
 
     let manager = Manager::new(state.clone());
 
-
-    match manager.start().await{
-
+    match manager.start().await {
         Ok(()) => {
-
             println!("Evaluation environment started successfully");
-
         }
 
         Err(error) => {
-
             eprintln!("Cannot start evaluation environment: {}", error);
-
         }
-
     }
-
 }
 
 
@@ -143,4 +121,16 @@ pub async fn start_application(State(state): State<Arc<DashboardState>>) -> Resu
     manager.start().await?;
 
     Ok(())
+}
+
+
+
+pub async fn stop_application(State(state): State<Arc<DashboardState>>) -> Result<(), String> {
+
+    let manager = Manager::new(state);
+
+    manager.stop().await?;
+
+    Ok(())
+    
 }

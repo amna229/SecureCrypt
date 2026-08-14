@@ -3,18 +3,21 @@ pub mod routes;
 pub mod services;
 pub mod state;
 pub mod ui;
+pub mod database;
 
 use std::error::Error;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use crate::dashboard::routes::create_router;
 use crate::dashboard::state::DashboardState;
+use crate::dashboard::database::create_pool;
 
 
 
 pub async fn run_dashboard() -> Result<(), Box<dyn Error + Send + Sync>>{
 
-    let state = Arc::new(DashboardState::new());
+    let db = create_pool().await?;
+    let state = Arc::new(DashboardState::new(db));
 
     let app = create_router(state);
 
