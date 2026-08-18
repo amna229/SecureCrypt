@@ -1,10 +1,16 @@
 use crate::dashboard::state::{ClientConfig, DashboardState, ServerConfig};
 use bollard::Docker;
 use bollard::models::{
-    ContainerCreateBody, EndpointSettings, NetworkConnectRequest, NetworkCreateRequest,
+    ContainerCreateBody,
+    EndpointSettings,
+    NetworkConnectRequest,
+    NetworkCreateRequest,
+    NetworkDisconnectRequest,
 };
 use bollard::query_parameters::{CreateContainerOptionsBuilder, RemoveContainerOptionsBuilder};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+
 
 
 
@@ -39,12 +45,16 @@ impl Manager {
         *is_running = true;
         drop(is_running);
 
+        let evaluation_started_at =
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(|e| e.to_string())?
+                .as_millis() as i64;
+
         let server_config = self.get_server_config().await?;
         let client_configs = self.get_client_configs().await?;
 
-        self.create_evaluation_network().await?;
-
-        if let Err(e) = self.start_server(&server_config).await {
+        if let Err(e) = self.create_evaluation_network().await {
 
             let mut is_running = self.state.is_evaluation_running.lock().await;
             *is_running = false;
@@ -52,7 +62,32 @@ impl Manager {
 
         }
 
-        self.start_clients(&client_configs).await?;
+        if let Err(e) = self.connect_application_to_evaluation_network().await {
+
+            let _ = self.cleanup_evaluation(&client_configs).await;
+            return Err(e);
+
+        }
+
+        if let Err(e) = self.start_server(&server_config).await {
+
+            eprintln!("Error starting server: {}", e);
+
+            let _ = self.cleanup_evaluation(&client_configs).await;
+
+            return Err(e);
+
+        }
+
+        if let Err(e) = self.start_clients(&client_configs, evaluation_started_at).await {
+
+            eprintln!("Error starting clients: {}", e);
+
+            let _ = self.cleanup_evaluation(&client_configs).await;
+
+            return Err(e);
+
+        }
 
         println!("Server and clients started successfully");
 
@@ -108,13 +143,11 @@ impl Manager {
         let cipher_suites = config.cipher_suites.join(",");
         let kx_groups = config.kx_groups.join(",");
 
-        let database_url = std::env::var("DATABASE_URL").map_err(|_| "DATABASE_URL not set in dashboard".to_string())?;
 
         let env = vec![
             format!("CRYPTO_MODE={}", config.key_exchange),
             format!("CIPHER_SUITES={}", cipher_suites),
-            format!("KX_GROUPS={}", kx_groups),
-            format!("DATABASE_URL={}", database_url)
+            format!("KX_GROUPS={}", kx_groups)
         ];
 
         let container_config = ContainerCreateBody{
@@ -146,13 +179,23 @@ impl Manager {
 
     }
 
-    async fn start_clients(&self, configs: &[ClientConfig]) -> Result<(), String> {
+
+
+    async fn start_clients(
+        &self,
+        configs: &[ClientConfig],
+        evaluation_started_at: i64,
+    ) -> Result<(), String> {
 
         for config in configs {
 
             for client_id in 0..config.num_connections {
 
-                self.start_client_container(client_id, config).await?;
+                self.start_client_container(
+                    client_id,
+                    config,
+                    evaluation_started_at,
+                ).await?;
 
             }
 
@@ -163,7 +206,7 @@ impl Manager {
 
 
 
-    async fn start_client_container(&self, client_id: u32, config: &ClientConfig) -> Result<(), String> {
+    async fn start_client_container(&self, client_id: u32, config: &ClientConfig, evaluation_started_at: i64) -> Result<(), String> {
 
         let cipher_suites = config.cipher_suites.join(",");
         let kx_groups = config.kx_groups.join(",");
@@ -172,8 +215,10 @@ impl Manager {
             format!("CRYPTO_MODE={}", config.key_exchange),
             format!("CIPHER_SUITES={}", cipher_suites),
             format!("KX_GROUPS={}", kx_groups),
+            format!("EVALUATION_STARTED_AT={}", evaluation_started_at),
             "SERVER_ADDR=tfg-server:8443".to_string(),
             "SERVER_NAME=localhost".to_string(),
+            "CONFIG_URL=https://tfg-application:8443/transfer/latest".to_string()
         ];
 
         let container_name = format!("tfg-client-{}", client_id + 1);
@@ -213,51 +258,9 @@ impl Manager {
 
         let client_configs = self.get_client_configs().await?;
 
-        // Stop and remove all client containers
-        for config in &client_configs {
+        self.cleanup_evaluation(&client_configs).await?;
 
-            for client_id in 0..config.num_connections {
-
-                let container_name = format!("tfg-client-{}", client_id + 1);
-
-                self.docker
-                    .remove_container(
-                        &container_name,
-                        Some(RemoveContainerOptionsBuilder::default().force(true).build()),
-                    )
-                    .await
-                    .map_err(|e| e.to_string())?;
-
-            }
-
-        }
-
-        // Stop and remove the server container
-        self.docker
-            .remove_container(
-                "tfg-server",
-                Some(
-                    RemoveContainerOptionsBuilder::default()
-                        .force(true)
-                        .build(),
-                ),
-            )
-            .await
-            .map_err(|e| e.to_string())?;
-
-        let mut is_running = self.state.is_evaluation_running.lock().await;
-        *is_running = false;
-
-        let mut application_running = self.state.application_running.lock().await;
-        *application_running = false;
-
-        //Remove the evaluation network
-        self.docker
-            .remove_network("tfg-evaluation-network")
-            .await
-            .map_err(|e| e.to_string())?;
-
-        println!("Server and client containers removed");
+        println!("Evaluation stopped and cleaned up");
 
         Ok(())
 
@@ -302,6 +305,108 @@ impl Manager {
 
         Ok(())
 
+    }
+
+
+
+    async fn connect_application_to_evaluation_network(&self) -> Result<(), String>{
+
+        let connect_request = NetworkConnectRequest {
+            
+            container: "tfg-application".to_string(),
+            endpoint_config: Some(EndpointSettings {
+                aliases: Some(vec![
+                    "tfg-application".to_string()
+                ]),
+                ..Default::default()
+            }),
+        };
+
+        self.docker
+            .connect_network(
+                "tfg-evaluation-network",
+                connect_request,
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+
+        println!("Application connected to evaluation network");
+
+        Ok(())
+
+    }
+
+
+
+    async fn cleanup_evaluation(&self, configs: &[ClientConfig]) -> Result<(), String> {
+
+        //Delete all client containers
+        for config in configs {
+
+            for client_id in 0..config.num_connections {
+
+                let container_name = format!("tfg-client-{}", client_id + 1);
+
+                self.docker
+                    .remove_container(
+                        &container_name,
+                        Some(
+                            RemoveContainerOptionsBuilder::default()
+                                .force(true)
+                                .build()
+                        ),
+                    )
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+
+        //Delete the server container
+        self.docker
+            .remove_container(
+                "tfg-server",
+                Some(
+                    RemoveContainerOptionsBuilder::default()
+                        .force(true)
+                        .build()
+                ),
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+
+        //Disconnect Application from the evaluation network
+        let disconnect_request = NetworkDisconnectRequest {
+
+            container: "tfg-application".to_string(),
+            force: Some(true)
+
+        };
+
+        let _ = self.docker
+            .disconnect_network(
+                "tfg-evaluation-network",
+                disconnect_request,
+            )
+            .await;
+
+        // Delete the evaluation network
+        self.docker
+            .remove_network("tfg-evaluation-network")
+            .await
+            .map_err(|e| e.to_string())?;
+
+        // Update the state
+        let mut application_running = self.state.application_running.lock().await;
+
+        *application_running = false;
+
+        let mut is_running = self.state.is_evaluation_running.lock().await;
+
+        *is_running = false;
+
+        println!("Evaluation environment cleaned up");
+
+        Ok(())
     }
 
 }

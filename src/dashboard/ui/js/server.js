@@ -1,34 +1,30 @@
-const classicalRadio =
-    document.querySelector('input[value="classical"]');
+const params = new URLSearchParams(window.location.search);
 
-const postQuantumRadio =
-    document.querySelector('input[value="post_quantum"]');
+const transferId = params.get("transfer_id");
 
-const classicalKx =
-    document.getElementById("classical-kx");
+const classicalRadio = document.querySelector('input[value="classical"]');
 
-const postQuantumKx =
-    document.getElementById("post-quantum-kx");
+const postQuantumRadio = document.querySelector('input[value="post_quantum"]');
 
-const cipherCheckboxes =
-    document.querySelectorAll(
-        'input[name="cipher_suites"]'
-    );
+const classicalKx = document.getElementById("classical-kx");
 
-const saveButton =
-    document.getElementById("save-button");
+const postQuantumKx = document.getElementById("post-quantum-kx");
 
-const cipherError =
-    document.getElementById("cipher-error");
+const cipherCheckboxes = document.querySelectorAll('input[name="cipher_suites"]');
 
-const kxError =
-    document.getElementById("kx-error");
+const saveButton = document.getElementById("save-button");
+
+const cipherError = document.getElementById("cipher-error");
+
+const kxError = document.getElementById("kx-error");
 
 
 function getActiveKxContainer() {
+
     return classicalRadio.checked
         ? classicalKx
         : postQuantumKx;
+
 }
 
 
@@ -116,32 +112,27 @@ function getConfiguration() {
 
 
 async function saveConfiguration() {
-    const config =
-        getConfiguration();
 
-    const response =
-        await fetch(
-            "/info/server",
-            {
-                method: "POST",
+    const config = getConfiguration();
 
-                headers: {
-                    "Content-Type":
-                        "application/json"
-                },
+    const response = await fetch(
+        "/info/server",
+        {
+            method: "POST",
 
-                body:
-                    JSON.stringify(config)
-            }
-        );
+            headers: {
+                "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify(config)
+        }
+    );
 
     if (response.ok) {
-        console.log(
-            "Configuración guardada"
-        );
 
-        window.location.href =
-            "/client";
+        console.log("Configuration saved");
+
+        window.location.href = "/client?transfer_id=" + encodeURIComponent(transferId);
     }
 }
 

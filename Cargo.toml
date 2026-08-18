@@ -14,10 +14,17 @@ webpki-roots = "1"
 tokio-util = { version = "0.7", features = ["rt"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 hyper = { version = "1", features = ["http1"] }
-tower-http = { version = "0.6", features = ["fs"] }
+tower-http = { version = "0.6", features = ["fs", "cors"] }
 sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "macros", "uuid", "migrate"]}
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v4", "serde"] }
 bollard = "0.21"
+http-body-util = "0.1.4"
+serde_json = "1.0.151"
+http = "1.1"
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"] }
+bytes = "1.12.1"
+chrono = "0.4.45"
+futures-util = "0.3.34"
 
 [[bin]]
 name = "application"

@@ -26,6 +26,20 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let pool = application::db::create_pool().await?;
 
+    let connection_handler = std::sync::Arc::new(
+        move |tls_stream| {
+            let pool = pool.clone();
+
+            async move {
+                application::http::serve_connection(
+                    tls_stream,
+                    pool,
+                )
+                .await
+            }
+        }
+    );
+
     let cipher_suites = vec![
         "TLS13_AES_256_GCM_SHA384".to_string(),
         "TLS13_AES_128_GCM_SHA256".to_string(),
@@ -45,7 +59,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         &cipher_suites,
         &kx_groups,
         ready_sender,
-        pool
+        connection_handler
     ));
 
     let mut server_completed = false;

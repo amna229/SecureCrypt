@@ -1,31 +1,27 @@
-const classicalRadio =
-    document.querySelector('input[value="classical"]');
+const params = new URLSearchParams(window.location.search);
 
-const postQuantumRadio =
-    document.querySelector('input[value="post_quantum"]');
+const transferId = params.get("transfer_id");
 
-const classicalKx =
-    document.getElementById("classical-kx");
+const classicalRadio = document.querySelector('input[value="classical"]');
 
-const postQuantumKx =
-    document.getElementById("post-quantum-kx");
+const postQuantumRadio = document.querySelector('input[value="post_quantum"]');
+
+const classicalKx = document.getElementById("classical-kx");
+
+const postQuantumKx = document.getElementById("post-quantum-kx");
 
 const cipherCheckboxes =
     document.querySelectorAll(
         'input[name="cipher_suites"]'
     );
 
-const numConnections =
-    document.getElementById("num-connections");
+const numConnections = document.getElementById("num-connections");
 
-const saveButton =
-    document.getElementById("save-button");
+const saveButton = document.getElementById("save-button");
 
-const cipherError =
-    document.getElementById("cipher-error");
+const cipherError = document.getElementById("cipher-error");
 
-const kxError =
-    document.getElementById("kx-error");
+const kxError = document.getElementById("kx-error");
 
 
 function getActiveKxContainer() {
@@ -231,34 +227,7 @@ async function checkClientConfiguration() {
 
         applicationButton.onclick = async () => {
 
-            applicationButton.disabled = true;
-
-            applicationButton.innerHTML = "Loading...";
-
-
-            const response =
-                await fetch(
-                    "/application/start",
-                    {
-                        method: "POST"
-                    }
-                );
-
-
-            if(response.ok){
-
-                window.location.assign(applicationButton.dataset.url);
-
-            }
-            else {
-
-                applicationButton.disabled = false;
-
-                applicationButton.innerHTML = "Go to<br>Application";
-
-                alert("Error starting application");
-
-            }
+            window.location.assign(applicationButton.dataset.url);
 
         };
 

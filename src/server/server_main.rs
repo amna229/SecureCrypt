@@ -1,16 +1,19 @@
 use std::error::Error;
+use std::sync::Arc;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tfg_project::crypto::crypto_mode::CryptoMode;
 use tfg_project::crypto::crypto_selector::get_crypto_provider;
+use tfg_project::server::http::serve_connection;
 use tfg_project::server::run_server;
+
 
 
 
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-    
+
     println!("Starting server...");
 
     let crypto_mode = std::env::var("CRYPTO_MODE")
@@ -34,18 +37,23 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         "classical" => CryptoMode::Classical,
         "post_quantum" => CryptoMode::PostQuantum,
         other => {
-            return Err(format!("Unknown CRYPTO_MODE: {}", other).into());
+            return Err(
+                format!("Unknown CRYPTO_MODE: {}", other).into()
+            );
         }
     };
 
     let provider = get_crypto_provider(crypto_mode);
 
     let cancellation_token = CancellationToken::new();
+
     let (ready_sender, _ready_receiver) = oneshot::channel();
 
-    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
-
-    let pool = sqlx::postgres::PgPoolOptions::new().connect(&database_url).await?;
+    let connection_handler = Arc::new(
+        |tls_stream| async move {
+            serve_connection(tls_stream).await
+        }
+    );
 
     run_server(
         provider,
@@ -54,7 +62,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         &cipher_suites,
         &kx_groups,
         ready_sender,
-        pool
+        connection_handler,
     )
     .await?;
 

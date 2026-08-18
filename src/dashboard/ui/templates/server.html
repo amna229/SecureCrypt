@@ -46,14 +46,14 @@
 
             <button
                 class="tab active"
-                onclick="window.location.href='/server'"
+                onclick="window.location.href='/server?transfer_id=' + encodeURIComponent(new URLSearchParams(window.location.search).get('transfer_id'))"
             >
                 Servidor
             </button>
 
             <button
                 class="tab"
-                onclick="window.location.href='/client'"
+                onclick="window.location.href='/client?transfer_id=' + encodeURIComponent(new URLSearchParams(window.location.search).get('transfer_id'))"
             >
                 Cliente
             </button>

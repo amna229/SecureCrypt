@@ -5,7 +5,7 @@ use crate::application::config::ApplicationConfig;
 
 
 
-pub struct ApplicationRepository {
+pub struct ApplicationRepository{
 
     pool: PgPool
 }
@@ -24,7 +24,7 @@ impl ApplicationRepository {
         let id = Uuid::new_v4();
 
         sqlx::query(
-            "INSERT INTO applications (
+            "INSERT INTO transfer (
                 id,
                 operation,
                 file_size,

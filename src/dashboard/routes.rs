@@ -1,7 +1,7 @@
 use crate::dashboard::{
     handlers::{
         application_status, client, client_status, dashboard, results, save_client_config,
-        save_server_config, server, start_application, start_evaluation, stop_application,
+        save_server_config, server, start_evaluation, stop_application,
     },
     state::DashboardState,
 };
@@ -11,8 +11,23 @@ use axum::{
 };
 use std::sync::Arc;
 use tower_http::services::ServeDir;
+use tower_http::cors::CorsLayer;
+use http::{HeaderValue, Method};
+
+
+
 
 pub fn create_router(state: Arc<DashboardState>) -> Router {
+
+    let cors = CorsLayer::new()
+        .allow_origin(
+            "https://127.0.0.1:8443"
+                .parse::<HeaderValue>()
+                .unwrap()
+        )
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers(tower_http::cors::Any);
+
     Router::new()
         .route("/", get(dashboard))
         .route("/server", get(server))
@@ -23,8 +38,8 @@ pub fn create_router(state: Arc<DashboardState>) -> Router {
         .route("/eval/start", post(start_evaluation))
         .route("/info/client/status", get(client_status))
         .route("/info/application/status", get(application_status))
-        .route("/application/start", post(start_application))
-        .route("/application/stop", post(stop_application))
+        .route("/eval/stop", post(stop_application))
         .nest_service("/static", ServeDir::new("src/dashboard/ui"))
         .with_state(state)
+        .layer(cors)
 }
