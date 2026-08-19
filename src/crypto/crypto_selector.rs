@@ -1,21 +1,14 @@
-// Selecciona el proveedor criptográfico solicitado por el usuario.
-//
-// Recibe el mecanismo elegido desde main (o desde el dashboard)
-// y devuelve la implementación correspondiente de AlgorithmProvider.
-//
-// No conoce cliente, servidor ni Tokio.
-
 use crate::crypto::algorithm_provider::AlgorithmProvider;
-use crate::crypto::provider::classical_provider::ClassicalProvider;
 use crate::crypto::crypto_mode::CryptoMode;
+use crate::crypto::provider::classical_provider::ClassicalProvider;
 use crate::crypto::provider::post_quantum_provider::PostQuantumProvider;
 
-pub fn get_crypto_provider(mode: CryptoMode) -> Box<dyn AlgorithmProvider> {
+pub fn get_crypto_provider(mode: &CryptoMode) -> Result<Box<dyn AlgorithmProvider>, String> {
+    match mode.0.as_str() {
+        "classical" => Ok(Box::new(ClassicalProvider::new())),
 
-    match mode {
+        "post_quantum" => Ok(Box::new(PostQuantumProvider::new())),
 
-        CryptoMode::Classical => Box::new(ClassicalProvider::new()),
-        CryptoMode::PostQuantum => Box::new(PostQuantumProvider::new()),
-        
+        other => Err(format!("Unknown crypto provider: {}", other)),
     }
 }

@@ -1,4 +1,4 @@
-pub mod client;
-pub mod server;
-pub mod crypto;
 pub mod application;
+pub mod client;
+pub mod crypto;
+pub mod server;

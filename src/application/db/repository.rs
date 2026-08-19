@@ -1,26 +1,17 @@
+use crate::application::config::ApplicationConfig;
 use sqlx::PgPool;
 use uuid::Uuid;
-use crate::application::config::ApplicationConfig;
 
-
-
-
-pub struct ApplicationRepository{
-
-    pool: PgPool
+pub struct ApplicationRepository {
+    pool: PgPool,
 }
 
-
-
-
 impl ApplicationRepository {
-
-    pub fn new(pool: PgPool) -> Self{
-        Self {pool}
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
     }
 
-    pub async fn save(&self, config: &ApplicationConfig) -> Result<Uuid, sqlx::Error>{
-
+    pub async fn save(&self, config: &ApplicationConfig) -> Result<Uuid, sqlx::Error> {
         let id = Uuid::new_v4();
 
         sqlx::query(
@@ -31,7 +22,7 @@ impl ApplicationRepository {
                 file_size_unit,
                 num_files
             )
-            VALUES ($1, $2, $3, $4, $5)"
+            VALUES ($1, $2, $3, $4, $5)",
         )
         .bind(id)
         .bind(&config.operation)

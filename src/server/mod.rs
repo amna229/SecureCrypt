@@ -8,10 +8,6 @@ use tokio_util::sync::CancellationToken;
 pub mod http;
 pub mod routes;
 
-
-
-
-
 pub async fn run_server<F, Fut>(
     provider: Box<dyn AlgorithmProvider>,
     addr: &str,
@@ -22,24 +18,12 @@ pub async fn run_server<F, Fut>(
     connection_handler: Arc<F>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
 where
-    F: Fn(
-            tokio_rustls::server::TlsStream<tokio::net::TcpStream>,
-        ) -> Fut
-        + Send
-        + Sync
-        + 'static,
-
-    Fut: std::future::Future<
-            Output = Result<(), Box<dyn std::error::Error + Send + Sync>>,
-        >
+    F: Fn(tokio_rustls::server::TlsStream<tokio::net::TcpStream>) -> Fut + Send + Sync + 'static,
+    Fut: std::future::Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>>
         + Send
         + 'static,
 {
-    let config =
-        provider.build_server_config(
-            selected_cipher_suites,
-            selected_kx_groups,
-        )?;
+    let config = provider.build_server_config(selected_cipher_suites, selected_kx_groups)?;
 
     let tls_acceptor = TlsAcceptor::from(Arc::new(config));
 

@@ -1,56 +1,52 @@
 mod application;
-mod crypto;
-mod server;
 
+use crate::application::db::create_pool;
+use crate::application::http::serve_connection;
 use std::error::Error;
+use std::sync::Arc;
+use tfg_project::crypto::crypto_mode::CryptoMode;
+use tfg_project::crypto::crypto_selector::get_crypto_provider;
+use tfg_project::server::run_server;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
-use crate::crypto::crypto_mode::CryptoMode;
-use crate::crypto::crypto_selector::get_crypto_provider;
-use crate::server::run_server;
-
-
-
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-
     println!("Starting application...");
 
-    let provider = get_crypto_provider(CryptoMode::Classical);
+    let crypto_mode = std::env::var("CRYPTO_MODE").unwrap_or_else(|_| "classical".to_string());
+
+    let cipher_suites: Vec<String> = std::env::var("CIPHER_SUITES")
+        .unwrap_or_default()
+        .split(',')
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .collect();
+
+    let kx_groups: Vec<String> = std::env::var("KX_GROUPS")
+        .unwrap_or_default()
+        .split(',')
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .collect();
+
+    let crypto_mode = CryptoMode::new(crypto_mode);
+
+    let provider = get_crypto_provider(&crypto_mode)?;
 
     let cancellation_token = CancellationToken::new();
+
     let server_cancellation_token = cancellation_token.clone();
 
     let (ready_sender, _ready_receiver) = oneshot::channel();
 
-    let pool = application::db::create_pool().await?;
+    let pool = create_pool().await?;
 
-    let connection_handler = std::sync::Arc::new(
-        move |tls_stream| {
-            let pool = pool.clone();
+    let connection_handler = Arc::new(move |tls_stream| {
+        let pool = pool.clone();
 
-            async move {
-                application::http::serve_connection(
-                    tls_stream,
-                    pool,
-                )
-                .await
-            }
-        }
-    );
-
-    let cipher_suites = vec![
-        "TLS13_AES_256_GCM_SHA384".to_string(),
-        "TLS13_AES_128_GCM_SHA256".to_string(),
-        "TLS13_CHACHA20_POLY1305_SHA256".to_string(),
-    ];
-
-    let kx_groups = vec![
-        "secp256r1".to_string(),
-        "secp384r1".to_string(),
-        "X25519".to_string(),
-    ];
+        async move { serve_connection(tls_stream, pool).await }
+    });
 
     let mut server_future = Box::pin(run_server(
         provider,
@@ -59,36 +55,42 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         &cipher_suites,
         &kx_groups,
         ready_sender,
-        connection_handler
+        connection_handler,
     ));
 
     let mut server_completed = false;
+
     let mut server_result: Option<Result<(), Box<dyn Error + Send + Sync>>> = None;
 
     tokio::select! {
+
         result = tokio::signal::ctrl_c() => {
+
             result?;
+
             println!("Application shutting down...");
+
             cancellation_token.cancel();
         }
+
+
         result = &mut server_future => {
+
             server_completed = true;
 
             server_result = Some(result);
+
             cancellation_token.cancel();
         }
     }
 
     if !server_completed {
-
         server_result = Some(server_future.as_mut().await);
-
     }
 
-    match server_result.expect("server result missing"){
-
+    match server_result.expect("server result missing") {
         Ok(()) => Ok(()),
+
         Err(error) => Err(error),
-        
     }
 }

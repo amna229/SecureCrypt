@@ -41,6 +41,9 @@ services:
       - "8443:8443"
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/tfg
+      CRYPTO_MODE: classical
+      CIPHER_SUITES: TLS13_AES_256_GCM_SHA384,TLS13_AES_128_GCM_SHA256,TLS13_CHACHA20_POLY1305_SHA256
+      KX_GROUPS: secp256r1,secp384r1,X25519
     volumes:
       - ./simplified-pki:/app/simplified-pki
       - ./src/application/ui:/app/src/application/ui
