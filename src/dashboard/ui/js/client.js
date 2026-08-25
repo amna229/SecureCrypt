@@ -31,6 +31,16 @@ const cipherCheckboxes =
         'input[name="cipher_suites"]'
     );
 
+const serverAddr =
+    document.getElementById(
+        "server-addr"
+    );
+
+const serverName =
+    document.getElementById(
+        "server-name"
+    );
+
 const numConnections =
     document.getElementById(
         "num-connections"
@@ -105,9 +115,9 @@ function updateKxGroups() {
 /**
  * Validates the current client configuration.
  *
- * At least one cipher suite and one key exchange group
- * must be selected, and the number of connections must
- * be within the allowed range.
+ * At least one cipher suite and one key exchange
+ * group must be selected, and the number of connections
+ * must be within the allowed range.
  */
 function updateValidation() {
     const selectedCiphers =
@@ -193,6 +203,12 @@ function getConfiguration() {
                 getActiveKxContainer(),
                 'input[name="kx_groups"]'
             ),
+
+        server_addr:
+            serverAddr.value.trim(),
+
+        server_name:
+            serverName.value.trim(),
 
         num_connections:
             Number(

@@ -259,6 +259,42 @@
 
 
         <h3>
+            Dirección del servidor:
+        </h3>
+
+
+        <div>
+
+            <input
+                type="text"
+                id="server-addr"
+                name="server_addr"
+                value="securecrypt-server:8443"
+                placeholder="host:puerto"
+            >
+
+        </div>
+
+
+        <h3>
+            Nombre del servidor TLS:
+        </h3>
+
+
+        <div>
+
+            <input
+                type="text"
+                id="server-name"
+                name="server_name"
+                value="localhost"
+                placeholder="nombre del certificado"
+            >
+
+        </div>
+
+
+        <h3>
             Número de conexiones:
         </h3>
 
@@ -288,6 +324,7 @@
 
     </div>
 
+
     <button
         id="application-button"
         class="application-button"
@@ -296,6 +333,7 @@
     >
         Go to<br>Application
     </button>
+
 
     <script src="/static/js/client.js"></script>
 

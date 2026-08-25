@@ -34,8 +34,15 @@ use tower_http::{cors::CorsLayer, services::ServeDir};
 /// handler and configures CORS, shared application state, and
 /// static file serving.
 pub fn create_router(state: Arc<DashboardState>) -> Router {
+    let application_url =
+        std::env::var("APPLICATION_URL").unwrap_or_else(|_| "https://127.0.0.1:8443".to_string());
+
+    let application_origin = application_url
+        .parse::<HeaderValue>()
+        .expect("Invalid APPLICATION_URL");
+
     let cors = CorsLayer::new()
-        .allow_origin("https://127.0.0.1:8443".parse::<HeaderValue>().unwrap())
+        .allow_origin(application_origin)
         .allow_methods([Method::GET, Method::POST])
         .allow_headers(tower_http::cors::Any);
 

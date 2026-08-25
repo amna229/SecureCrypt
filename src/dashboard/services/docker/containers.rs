@@ -88,8 +88,8 @@ impl Manager {
             format!("EVALUATION_ID={}", evaluation_id),
             format!("CLIENT_ID={}", actual_client_id),
             format!("EVALUATION_STARTED_AT={}", evaluation_started_at),
-            "SERVER_ADDR=securecrypt-server:8443".to_string(),
-            "SERVER_NAME=localhost".to_string(),
+            format!("SERVER_ADDR={}", config.server_addr),
+            format!("SERVER_NAME={}", config.server_name),
             "CONFIG_URL=https://securecrypt-application:8443/transfer/latest".to_string(),
         ];
 

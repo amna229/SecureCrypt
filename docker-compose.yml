@@ -29,27 +29,10 @@ services:
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/securecrypt
       TIME_ZONE: Europe/Madrid
+      APPLICATION_URL: https://127.0.0.1:8443
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./simplified-pki:/app/simplified-pki
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  application:
-    build: .
-    container_name: securecrypt-application
-    command: ["./application"]
-    ports:
-      - "8443:8443"
-    environment:
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/securecrypt
-      CRYPTO_MODE: classical
-      CIPHER_SUITES: TLS13_AES_256_GCM_SHA384,TLS13_AES_128_GCM_SHA256,TLS13_CHACHA20_POLY1305_SHA256
-      KX_GROUPS: secp256r1,secp384r1,X25519
-    volumes:
-      - ./simplified-pki:/app/simplified-pki
-      - ./src/application/ui:/app/src/application/ui
     depends_on:
       postgres:
         condition: service_healthy

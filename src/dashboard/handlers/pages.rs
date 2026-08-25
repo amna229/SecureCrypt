@@ -19,9 +19,10 @@ pub async fn server() -> Html<&'static str> {
 
 /// Serves the client configuration page.
 pub async fn client() -> Html<String> {
-    let application_url = "https://127.0.0.1:8443";
+    let application_url =
+        std::env::var("APPLICATION_URL").unwrap_or_else(|_| "https://127.0.0.1:8443".to_string());
 
-    let html = templates::CLIENT.replace("{{APPLICATION_URL}}", application_url);
+    let html = templates::CLIENT.replace("{{APPLICATION_URL}}", &application_url);
 
     Html(html)
 }

@@ -28,6 +28,8 @@ pub struct ClientConfig {
     pub key_exchange: crate::crypto::crypto_mode::CryptoMode,
     pub cipher_suites: Vec<String>,
     pub kx_groups: Vec<String>,
+    pub server_addr: String,
+    pub server_name: String,
     pub num_connections: u32,
 }
 
