@@ -1,59 +1,114 @@
-const params = new URLSearchParams(window.location.search);
+/**
+ * Client configuration interface.
+ *
+ * Handles cryptographic configuration, key exchange selection,
+ * connection validation, configuration persistence, and application
+ * access once the client configuration has been stored.
+ */
 
-const transferId = params.get("transfer_id");
+const classicalRadio =
+    document.querySelector(
+        'input[value="classical"]'
+    );
 
-const classicalRadio = document.querySelector('input[value="classical"]');
+const postQuantumRadio =
+    document.querySelector(
+        'input[value="post_quantum"]'
+    );
 
-const postQuantumRadio = document.querySelector('input[value="post_quantum"]');
+const classicalKx =
+    document.getElementById(
+        "classical-kx"
+    );
 
-const classicalKx = document.getElementById("classical-kx");
-
-const postQuantumKx = document.getElementById("post-quantum-kx");
+const postQuantumKx =
+    document.getElementById(
+        "post-quantum-kx"
+    );
 
 const cipherCheckboxes =
     document.querySelectorAll(
         'input[name="cipher_suites"]'
     );
 
-const numConnections = document.getElementById("num-connections");
+const numConnections =
+    document.getElementById(
+        "num-connections"
+    );
 
-const saveButton = document.getElementById("save-button");
+const saveButton =
+    document.getElementById(
+        "save-button"
+    );
 
-const cipherError = document.getElementById("cipher-error");
+const cipherError =
+    document.getElementById(
+        "cipher-error"
+    );
 
-const kxError = document.getElementById("kx-error");
+const kxError =
+    document.getElementById(
+        "kx-error"
+    );
 
-
+/**
+ * Returns the key exchange container corresponding
+ * to the currently selected cryptographic mode.
+ */
 function getActiveKxContainer() {
     return classicalRadio.checked
         ? classicalKx
         : postQuantumKx;
 }
 
-
-function getSelectedValues(container, selector) {
+/**
+ * Returns the selected values from a group of checkboxes.
+ *
+ * @param {Element} container
+ * @param {string} selector
+ * @returns {string[]}
+ */
+function getSelectedValues(
+    container,
+    selector
+) {
     return Array.from(
-        container.querySelectorAll(`${selector}:checked`)
+        container.querySelectorAll(
+            `${selector}:checked`
+        )
     ).map(
         checkbox => checkbox.value
     );
 }
 
-
+/**
+ * Updates the visible key exchange options according
+ * to the selected cryptographic mode.
+ */
 function updateKxGroups() {
     const isClassical =
         classicalRadio.checked;
 
     classicalKx.style.display =
-        isClassical ? "block" : "none";
+        isClassical
+            ? "block"
+            : "none";
 
     postQuantumKx.style.display =
-        isClassical ? "none" : "block";
+        isClassical
+            ? "none"
+            : "block";
 
     updateValidation();
 }
 
-
+/**
+ * Validates the current client configuration.
+ *
+ * At least one cipher suite and one key exchange group
+ * must be selected, and the number of connections must
+ * be within the allowed range.
+ */
 function updateValidation() {
     const selectedCiphers =
         getSelectedValues(
@@ -96,18 +151,30 @@ function updateValidation() {
         invalidNumConnections;
 }
 
-
+/**
+ * Keeps the number of client connections within
+ * the supported range.
+ */
 function normalizeConnections() {
-    if (numConnections.value > 1000) {
+    if (
+        numConnections.value > 1000
+    ) {
         numConnections.value = 1000;
     }
 
-    if (numConnections.value < 1) {
+    if (
+        numConnections.value < 1
+    ) {
         numConnections.value = 1;
     }
 }
 
-
+/**
+ * Builds the client configuration object from
+ * the current form values.
+ *
+ * @returns {Object}
+ */
 function getConfiguration() {
     return {
         key_exchange:
@@ -128,11 +195,16 @@ function getConfiguration() {
             ),
 
         num_connections:
-            Number(numConnections.value)
+            Number(
+                numConnections.value
+            )
     };
 }
 
-
+/**
+ * Sends the current client configuration
+ * to the dashboard backend.
+ */
 async function saveConfiguration() {
     const config =
         getConfiguration();
@@ -153,12 +225,46 @@ async function saveConfiguration() {
             }
         );
 
-    console.log("Respuesta del servidor:", response.status);
+    console.log(
+        "Server response:",
+        response.status
+    );
 
     await checkClientConfiguration();
-
 }
 
+/**
+ * Checks whether a client configuration has been stored.
+ *
+ * When a valid configuration exists, the application
+ * navigation button is enabled.
+ */
+async function checkClientConfiguration() {
+    const response =
+        await fetch(
+            "/info/client/status"
+        );
+
+    const configured =
+        await response.json();
+
+    const applicationButton =
+        document.getElementById(
+            "application-button"
+        );
+
+    if (configured) {
+        applicationButton.disabled =
+            false;
+
+        applicationButton.onclick =
+            async () => {
+                window.location.assign(
+                    applicationButton.dataset.url
+                );
+            };
+    }
+}
 
 numConnections.addEventListener(
     "input",
@@ -204,37 +310,6 @@ saveButton.addEventListener(
     "click",
     saveConfiguration
 );
-
-
-
-async function checkClientConfiguration() {
-
-    const response = await fetch("/info/client/status");
-
-
-    const configured = await response.json();
-
-
-    const applicationButton =
-        document.getElementById(
-            "application-button"
-        );
-
-
-    if(configured){
-
-        applicationButton.disabled = false;
-
-        applicationButton.onclick = async () => {
-
-            window.location.assign(applicationButton.dataset.url);
-
-        };
-
-    }
-
-}
-
 
 updateKxGroups();
 checkClientConfiguration();

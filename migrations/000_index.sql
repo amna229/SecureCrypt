@@ -1,0 +1,1 @@
+-- Índices pendientes de creación tras definir las tablas.

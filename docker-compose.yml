@@ -1,12 +1,14 @@
+name: secure_crypt
+
 services:
 
   postgres:
     image: postgres:16
-    container_name: tfg-postgres
+    container_name: securecrypt-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: tfg
+      POSTGRES_DB: securecrypt
     ports:
       - "5432:5432"
     volumes:
@@ -21,11 +23,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dashboard
-    container_name: tfg-dashboard
+    container_name: securecrypt-dashboard
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/tfg
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/securecrypt
+      TIME_ZONE: Europe/Madrid
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./simplified-pki:/app/simplified-pki
@@ -35,18 +38,22 @@ services:
 
   application:
     build: .
-    container_name: tfg-application
+    container_name: securecrypt-application
     command: ["./application"]
     ports:
       - "8443:8443"
     environment:
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/tfg
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/securecrypt
       CRYPTO_MODE: classical
       CIPHER_SUITES: TLS13_AES_256_GCM_SHA384,TLS13_AES_128_GCM_SHA256,TLS13_CHACHA20_POLY1305_SHA256
       KX_GROUPS: secp256r1,secp384r1,X25519
     volumes:
       - ./simplified-pki:/app/simplified-pki
       - ./src/application/ui:/app/src/application/ui
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres_data:
+    name: secure_crypt_postgres_data

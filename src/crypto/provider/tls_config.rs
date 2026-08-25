@@ -12,6 +12,7 @@ const ROOT_CA_PATH: &str = "simplified-pki/rootCA/rootCA.crt";
 const SERVER_CERTIFICATE_PATH: &str = "simplified-pki/rootCA/server.crt";
 const SERVER_PRIVATE_KEY_PATH: &str = "simplified-pki/rootCA/private/server.key";
 
+/// Filters the crypto provider according to the selected cipher suites and key exchange groups.
 pub fn build_crypto_provider(
     mut crypto_provider: CryptoProvider,
     supported_cipher_suites: &[CipherSuite],
@@ -40,6 +41,7 @@ pub fn build_crypto_provider(
     crypto_provider
 }
 
+/// Builds a TLS 1.3 client configuration using the provided crypto provider.
 pub fn build_client_config(
     crypto_provider: CryptoProvider,
 ) -> Result<ClientConfig, Box<dyn std::error::Error + Send + Sync>> {
@@ -53,11 +55,11 @@ pub fn build_client_config(
     Ok(client_config)
 }
 
+/// Builds a TLS 1.3 server configuration using the provided crypto provider.
 pub fn build_server_config(
     crypto_provider: CryptoProvider,
 ) -> Result<ServerConfig, Box<dyn std::error::Error + Send + Sync>> {
     let cert_chain = load_server_certificate()?;
-
     let private_key = load_server_private_key()?;
 
     let server_config = ServerConfig::builder_with_provider(Arc::new(crypto_provider))
@@ -68,9 +70,11 @@ pub fn build_server_config(
     Ok(server_config)
 }
 
+/// Loads the root CA certificates used to authenticate the server.
 fn load_root_cert_store() -> Result<RootCertStore, Box<dyn std::error::Error + Send + Sync>> {
     let ca_file = File::open(ROOT_CA_PATH)?;
     let mut ca_reader = BufReader::new(ca_file);
+
     let ca_certificates: Vec<CertificateDer<'static>> =
         rustls_pemfile::certs(&mut ca_reader).collect::<Result<Vec<_>, _>>()?;
 
@@ -83,6 +87,7 @@ fn load_root_cert_store() -> Result<RootCertStore, Box<dyn std::error::Error + S
     Ok(root_cert_store)
 }
 
+/// Loads the server certificate chain from the configured certificate file.
 fn load_server_certificate()
 -> Result<Vec<CertificateDer<'static>>, Box<dyn std::error::Error + Send + Sync>> {
     let cert_file = File::open(SERVER_CERTIFICATE_PATH)?;
@@ -93,6 +98,7 @@ fn load_server_certificate()
     Ok(cert_chain)
 }
 
+/// Loads the server private key from the configured key file.
 fn load_server_private_key()
 -> Result<rustls::pki_types::PrivateKeyDer<'static>, Box<dyn std::error::Error + Send + Sync>> {
     let key_file = File::open(SERVER_PRIVATE_KEY_PATH)?;

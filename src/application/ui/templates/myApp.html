@@ -1,8 +1,116 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
+
     <meta charset="UTF-8">
+
     <title>Secure File Transfer</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        button,
+        input,
+        select {
+            font-size: 15px;
+        }
+
+        button {
+            padding: 9px 14px;
+            cursor: pointer;
+        }
+
+        .transfer-status {
+            margin-top: 25px;
+            padding: 18px;
+            border-radius: 12px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            display: none;
+        }
+
+        .transfer-status.visible {
+            display: block;
+        }
+
+        .transfer-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: bold;
+            margin-bottom: 12px;
+        }
+
+        .transfer-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #222;
+            color: white;
+            font-size: 20px;
+            animation: pulse 1.2s infinite;
+        }
+
+        .progress-track {
+            width: 100%;
+            height: 9px;
+            background: #ddd;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            width: 0%;
+            height: 100%;
+            background: #222;
+            transition: width 0.4s ease;
+        }
+
+        .transfer-details {
+            margin-top: 8px;
+            color: #666;
+            font-size: 13px;
+        }
+
+        .evaluation-progress-list {
+            margin-top: 10px;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+
+        .evaluation-progress-item {
+            margin-top: 5px;
+            color: #555;
+            font-size: 13px;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.08);
+                opacity: 0.65;
+            }
+
+        }
+
+    </style>
+
 </head>
 
 <body>
@@ -12,14 +120,23 @@
     <h2>Operation</h2>
 
     <label>
-        <input type="radio" name="operation" value="upload" checked>
+        <input
+            type="radio"
+            name="operation"
+            value="upload"
+            checked
+        >
         Upload
     </label>
 
     <br>
 
     <label>
-        <input type="radio" name="operation" value="download">
+        <input
+            type="radio"
+            name="operation"
+            value="download"
+        >
         Download
     </label>
 
@@ -27,7 +144,9 @@
 
     <h2>File Generation</h2>
 
-    <label for="file-size">File size:</label>
+    <label for="file-size">
+        File size:
+    </label>
 
     <input
         id="file-size"
@@ -37,14 +156,29 @@
     >
 
     <select id="file-size-unit">
-        <option value="KB" selected>KB</option>
-        <option value="MB">MB</option>
-        <option value="GB">GB</option>
+
+        <option
+            value="KB"
+            selected
+        >
+            KB
+        </option>
+
+        <option value="MB">
+            MB
+        </option>
+
+        <option value="GB">
+            GB
+        </option>
+
     </select>
 
     <br><br>
 
-    <label for="num-files">Number of files:</label>
+    <label for="num-files">
+        Number of files:
+    </label>
 
     <input
         id="num-files"
@@ -77,7 +211,84 @@
         Back to configuration
     </button>
 
-    <div><p id="status"></p></div>
+    <div
+        id="transfer-status"
+        class="transfer-status"
+    >
+
+        <div class="transfer-header">
+
+            <div class="transfer-icon">
+                ⇅
+            </div>
+
+            <div id="transfer-message">
+                Transfer in progress...
+            </div>
+
+        </div>
+
+        <div class="progress-track">
+
+            <div
+                id="progress-fill"
+                class="progress-fill"
+            ></div>
+
+        </div>
+
+        <div
+            id="transfer-details"
+            class="transfer-details"
+        >
+            Waiting for transfers...
+        </div>
+
+    </div>
+
+    <div
+        id="evaluation-status"
+        class="transfer-status"
+    >
+
+        <div class="transfer-header">
+
+            <div class="transfer-icon">
+                ⚙
+            </div>
+
+            <div id="evaluation-message">
+                Starting evaluation environment...
+            </div>
+
+        </div>
+
+        <div class="progress-track">
+
+            <div
+                id="evaluation-progress-fill"
+                class="progress-fill"
+            ></div>
+
+        </div>
+
+        <div
+            id="evaluation-details"
+            class="transfer-details"
+        >
+            Preparing evaluation environment...
+        </div>
+
+        <div
+            id="evaluation-progress"
+            class="evaluation-progress-list"
+        ></div>
+
+    </div>
+
+    <div>
+        <p id="status"></p>
+    </div>
 
     <button
         id="results-button"
@@ -89,6 +300,9 @@
 
 </body>
 
-<script src="/application-static/js/myApp.js"></script>
+<script
+    type="module"
+    src="/application-static/js/main.js"
+></script>
 
 </html>

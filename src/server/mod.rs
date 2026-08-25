@@ -1,13 +1,24 @@
 use crate::crypto::algorithm_provider::AlgorithmProvider;
 use std::sync::Arc;
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::oneshot;
-use tokio_rustls::TlsAcceptor;
+use tokio_rustls::{TlsAcceptor, server::TlsStream};
 use tokio_util::sync::CancellationToken;
 
 pub mod http;
 pub mod routes;
 
+/// Starts the SecureCrypt server.
+///
+/// The server creates the TLS configuration using the provided cryptographic
+/// provider, listens for incoming TCP connections and establishes a TLS
+/// connection with each client.
+///
+/// Each established connection is processed independently, allowing multiple
+/// clients to communicate with the server concurrently.
+///
+/// The server can be stopped gracefully through the provided cancellation
+/// token.
 pub async fn run_server<F, Fut>(
     provider: Box<dyn AlgorithmProvider>,
     addr: &str,
@@ -18,7 +29,7 @@ pub async fn run_server<F, Fut>(
     connection_handler: Arc<F>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
 where
-    F: Fn(tokio_rustls::server::TlsStream<tokio::net::TcpStream>) -> Fut + Send + Sync + 'static,
+    F: Fn(TlsStream<TcpStream>) -> Fut + Send + Sync + 'static,
     Fut: std::future::Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>>
         + Send
         + 'static,
@@ -29,49 +40,63 @@ where
 
     let listener = TcpListener::bind(addr).await?;
 
-    println!("tfg-project-server up on {}", addr);
+    println!("SecureCrypt server up on {}", addr);
 
+    // Notify the caller that the server is ready to accept connections.
     let _ = ready_sender.send(());
 
     loop {
         tokio::select! {
-
             _ = cancellation_token.cancelled() => {
-
                 println!("Server shutting down..");
-
                 break Ok(());
             }
 
             result = listener.accept() => {
-
                 let (stream, client_addr) = result?;
 
                 let acceptor = tls_acceptor.clone();
-
                 let connection_handler = Arc::clone(&connection_handler);
 
                 tokio::spawn(async move {
-
-                    match acceptor.accept(stream).await {
-
-                        Ok(tls_stream) => {
-
-                            println!("Server: TLS connection established with {}", client_addr);
-
-                            if let Err(e) = connection_handler(tls_stream).await
-                            {
-                                eprintln!("Error serving HTTP connection for {}: {}", client_addr, e);
-                            }
-                        }
-
-                        Err(e) => {
-
-                            eprintln!("Error accepting TLS connection: {}", e);
-                        }
+                    if let Err(error) = handle_connection(
+                        stream,
+                        client_addr,
+                        acceptor,
+                        connection_handler,
+                    )
+                    .await
+                    {
+                        eprintln!("Error handling connection from {}: {}", client_addr, error);
                     }
                 });
             }
         }
     }
+}
+
+/// Establishes TLS and processes a client connection.
+///
+/// The TCP stream is first upgraded to TLS using the configured acceptor.
+/// Once the TLS handshake succeeds, the resulting secure connection is passed
+/// to the application-level connection handler.
+async fn handle_connection<F, Fut>(
+    stream: TcpStream,
+    client_addr: std::net::SocketAddr,
+    acceptor: TlsAcceptor,
+    connection_handler: Arc<F>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
+where
+    F: Fn(TlsStream<TcpStream>) -> Fut + Send + Sync + 'static,
+    Fut: std::future::Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>>
+        + Send
+        + 'static,
+{
+    let tls_stream = acceptor.accept(stream).await?;
+
+    println!("Server: TLS connection established with {}", client_addr);
+
+    connection_handler(tls_stream).await?;
+
+    Ok(())
 }

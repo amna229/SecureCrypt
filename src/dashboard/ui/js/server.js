@@ -1,56 +1,116 @@
-const params = new URLSearchParams(window.location.search);
+/**
+ * Server configuration interface.
+ *
+ * Handles cryptographic mode selection, cipher suite and key exchange
+ * validation, configuration persistence, and navigation to the client
+ * configuration page.
+ */
 
-const transferId = params.get("transfer_id");
+const params =
+    new URLSearchParams(
+        window.location.search
+    );
 
-const classicalRadio = document.querySelector('input[value="classical"]');
+const transferId =
+    params.get("transfer_id");
 
-const postQuantumRadio = document.querySelector('input[value="post_quantum"]');
+const classicalRadio =
+    document.querySelector(
+        'input[value="classical"]'
+    );
 
-const classicalKx = document.getElementById("classical-kx");
+const postQuantumRadio =
+    document.querySelector(
+        'input[value="post_quantum"]'
+    );
 
-const postQuantumKx = document.getElementById("post-quantum-kx");
+const classicalKx =
+    document.getElementById(
+        "classical-kx"
+    );
 
-const cipherCheckboxes = document.querySelectorAll('input[name="cipher_suites"]');
+const postQuantumKx =
+    document.getElementById(
+        "post-quantum-kx"
+    );
 
-const saveButton = document.getElementById("save-button");
+const cipherCheckboxes =
+    document.querySelectorAll(
+        'input[name="cipher_suites"]'
+    );
 
-const cipherError = document.getElementById("cipher-error");
+const saveButton =
+    document.getElementById(
+        "save-button"
+    );
 
-const kxError = document.getElementById("kx-error");
+const cipherError =
+    document.getElementById(
+        "cipher-error"
+    );
 
+const kxError =
+    document.getElementById(
+        "kx-error"
+    );
 
+/**
+ * Returns the key exchange container corresponding
+ * to the selected cryptographic mode.
+ */
 function getActiveKxContainer() {
-
     return classicalRadio.checked
         ? classicalKx
         : postQuantumKx;
-
 }
 
-
-function getSelectedValues(container, selector) {
+/**
+ * Returns the selected checkbox values from a container.
+ *
+ * @param {Element} container
+ * @param {string} selector
+ * @returns {string[]}
+ */
+function getSelectedValues(
+    container,
+    selector
+) {
     return Array.from(
-        container.querySelectorAll(`${selector}:checked`)
+        container.querySelectorAll(
+            `${selector}:checked`
+        )
     ).map(
         checkbox => checkbox.value
     );
 }
 
-
+/**
+ * Updates the visible key exchange options
+ * and refreshes validation.
+ */
 function updateKxGroups() {
     const isClassical =
         classicalRadio.checked;
 
     classicalKx.style.display =
-        isClassical ? "block" : "none";
+        isClassical
+            ? "block"
+            : "none";
 
     postQuantumKx.style.display =
-        isClassical ? "none" : "block";
+        isClassical
+            ? "none"
+            : "block";
 
     updateValidation();
 }
 
-
+/**
+ * Validates the server cryptographic configuration.
+ *
+ * At least one cipher suite and one key exchange
+ * group must be selected.
+ */
 function updateValidation() {
     const selectedCiphers =
         getSelectedValues(
@@ -88,7 +148,12 @@ function updateValidation() {
         noKxSelected;
 }
 
-
+/**
+ * Builds the server configuration object
+ * from the selected form values.
+ *
+ * @returns {Object}
+ */
 function getConfiguration() {
     return {
         key_exchange:
@@ -110,32 +175,44 @@ function getConfiguration() {
     };
 }
 
-
+/**
+ * Sends the server configuration to the dashboard backend.
+ *
+ * After a successful save, the user is redirected to
+ * the client configuration page.
+ */
 async function saveConfiguration() {
+    const config =
+        getConfiguration();
 
-    const config = getConfiguration();
+    const response =
+        await fetch(
+            "/info/server",
+            {
+                method: "POST",
 
-    const response = await fetch(
-        "/info/server",
-        {
-            method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
 
-            headers: {
-                "Content-Type": "application/json"
-            },
-
-            body: JSON.stringify(config)
-        }
-    );
+                body:
+                    JSON.stringify(config)
+            }
+        );
 
     if (response.ok) {
+        console.log(
+            "Configuration saved"
+        );
 
-        console.log("Configuration saved");
-
-        window.location.href = "/client?transfer_id=" + encodeURIComponent(transferId);
+        window.location.href =
+            "/client?transfer_id="
+            + encodeURIComponent(
+                transferId
+            );
     }
 }
-
 
 classicalRadio.addEventListener(
     "change",

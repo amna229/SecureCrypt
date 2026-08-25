@@ -1,11 +1,25 @@
 use std::error::Error;
-use tfg_project::client::run_client;
-use tfg_project::crypto::crypto_mode::CryptoMode;
-use tfg_project::crypto::crypto_selector::get_crypto_provider;
 
+use secure_crypt::client::run_client;
+use secure_crypt::crypto::crypto_mode::CryptoMode;
+use secure_crypt::crypto::crypto_selector::get_crypto_provider;
+use uuid::Uuid;
+
+/// Entry point of the SecureCrypt client.
+///
+/// It reads the client configuration from environment variables,
+/// selects the required cryptographic provider and starts the client.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     println!("Starting client...");
+
+    let client_id: u32 = std::env::var("CLIENT_ID")
+        .expect("CLIENT_ID not set")
+        .parse()?;
+
+    let evaluation_id: Uuid = std::env::var("EVALUATION_ID")
+        .expect("EVALUATION_ID not set")
+        .parse()?;
 
     let crypto_mode = std::env::var("CRYPTO_MODE").unwrap_or_else(|_| "classical".to_string());
 
@@ -44,6 +58,8 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         &kx_groups,
         &config_url,
         &evaluation_started_at,
+        client_id,
+        evaluation_id,
     )
     .await?;
 

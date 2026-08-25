@@ -1,15 +1,43 @@
 FROM rust:1.88 AS builder
+
 WORKDIR /app
+
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 COPY migrations ./migrations
-RUN cargo build --release --bin tfg_dashboard
+
+RUN cargo build --release --bin dashboard
+
 FROM debian:bookworm-slim
+
 WORKDIR /app
+
 RUN apt-get update && apt-get install -y \
-    libssl-dev ca-certificates \
+    libssl-dev \
+    ca-certificates \
+    chromium \
+    fonts-liberation \
+    fonts-dejavu \
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/target/release/tfg_dashboard .
+
+ENV CHROME=/usr/bin/chromium
+ENV CHROME_EXECUTABLE=/usr/bin/chromium
+
+COPY --from=builder /app/target/release/dashboard .
+
 COPY simplified-pki ./simplified-pki
 COPY src/dashboard/ui ./src/dashboard/ui
-CMD ["./tfg_dashboard"]
+
+CMD ["./dashboard"]

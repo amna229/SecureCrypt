@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="es">
 
 <head>
@@ -11,16 +10,196 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>Resultados</title>
+    <title>Results</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1300px;
+            margin: 30px auto;
+            padding: 0 20px;
+            background: #fafafa;
+            color: #222;
+        }
+
+        h1 {
+            margin-bottom: 25px;
+        }
+
+        h2 {
+            margin-bottom: 15px;
+        }
+
+        h3 {
+            margin-top: 25px;
+            margin-bottom: 12px;
+        }
+
+        .actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .actions label {
+            font-weight: bold;
+        }
+
+        .actions input {
+            padding: 8px;
+        }
+
+        button {
+            padding: 10px 16px;
+            cursor: pointer;
+        }
+
+        .status-message {
+            margin-bottom: 25px;
+            color: #666;
+        }
+
+        .no-results {
+            padding: 20px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        .group {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 35px;
+        }
+
+        .group-header {
+            margin-bottom: 25px;
+        }
+
+        .group-title {
+            margin: 0 0 15px 0;
+            font-size: 24px;
+        }
+
+        .configuration {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .configuration-item {
+            padding: 8px 12px;
+            background: #f1f1f1;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .section {
+            margin-top: 25px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: center;
+        }
+
+        th {
+            background: #f2f2f2;
+        }
+
+        .empty-section {
+            color: #777;
+            padding: 10px 0;
+        }
+
+        .comparison-not-available {
+            padding: 15px;
+            background: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns:
+                repeat(
+                    auto-fit,
+                    minmax(220px, 1fr)
+                );
+            gap: 15px;
+        }
+
+        .metric-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+
+        .metric-label {
+            margin-bottom: 8px;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+    </style>
 
 </head>
 
-
 <body>
 
-    <h1>
-        Resultados
-    </h1>
+    <h1>Results</h1>
+
+    <div class="actions">
+
+        <label for="results-date">
+            Date:
+        </label>
+
+        <input
+            id="results-date"
+            type="date"
+        >
+
+        <button id="load-results">
+            Load Results
+        </button>
+
+        <button id="download-pdf">
+            Download PDF
+        </button>
+
+    </div>
+
+    <div
+        id="status-message"
+        class="status-message"
+    ></div>
+
+    <div id="results-groups"></div>
+
+    <script
+        type="module"
+        src="/static/js/results/main.js"
+    ></script>
 
 </body>
 
