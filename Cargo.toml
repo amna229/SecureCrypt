@@ -29,10 +29,6 @@ headless_chrome = "1.0.22"
 urlencoding = "2.1.3"
 
 [[bin]]
-name = "application"
-path = "src/application/application_main.rs"
-
-[[bin]]
 name = "dashboard"
 path = "src/main.rs"
 

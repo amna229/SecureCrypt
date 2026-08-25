@@ -1,4 +1,5 @@
-use crate::crypto::algorithm_provider::AlgorithmProvider;
+use crate::crypto::CryptoConfig;
+
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::oneshot;
@@ -10,21 +11,19 @@ pub mod routes;
 
 /// Starts the SecureCrypt server.
 ///
-/// The server creates the TLS configuration using the provided cryptographic
-/// provider, listens for incoming TCP connections and establishes a TLS
-/// connection with each client.
+/// The server builds its TLS configuration from the provided
+/// cryptographic configuration, listens for incoming TCP connections
+/// and establishes a TLS connection with each client.
 ///
-/// Each established connection is processed independently, allowing multiple
-/// clients to communicate with the server concurrently.
+/// Each established connection is processed independently, allowing
+/// multiple clients to communicate with the server concurrently.
 ///
-/// The server can be stopped gracefully through the provided cancellation
-/// token.
+/// The server can be stopped gracefully through the provided
+/// cancellation token.
 pub async fn run_server<F, Fut>(
-    provider: Box<dyn AlgorithmProvider>,
+    crypto_config: CryptoConfig,
     addr: &str,
     cancellation_token: CancellationToken,
-    selected_cipher_suites: &[String],
-    selected_kx_groups: &[String],
     ready_sender: oneshot::Sender<()>,
     connection_handler: Arc<F>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
@@ -34,7 +33,7 @@ where
         + Send
         + 'static,
 {
-    let config = provider.build_server_config(selected_cipher_suites, selected_kx_groups)?;
+    let config = crypto_config.build_server_config()?;
 
     let tls_acceptor = TlsAcceptor::from(Arc::new(config));
 
@@ -53,19 +52,22 @@ where
             }
 
             result = listener.accept() => {
+
                 let (stream, client_addr) = result?;
 
                 let acceptor = tls_acceptor.clone();
+
                 let connection_handler = Arc::clone(&connection_handler);
 
                 tokio::spawn(async move {
-                    if let Err(error) = handle_connection(
-                        stream,
-                        client_addr,
-                        acceptor,
-                        connection_handler,
-                    )
-                    .await
+                    if let Err(error) =
+                        handle_connection(
+                            stream,
+                            client_addr,
+                            acceptor,
+                            connection_handler,
+                        )
+                        .await
                     {
                         eprintln!("Error handling connection from {}: {}", client_addr, error);
                     }
@@ -77,9 +79,9 @@ where
 
 /// Establishes TLS and processes a client connection.
 ///
-/// The TCP stream is first upgraded to TLS using the configured acceptor.
-/// Once the TLS handshake succeeds, the resulting secure connection is passed
-/// to the application-level connection handler.
+/// The TCP stream is first upgraded to TLS using the configured
+/// acceptor. Once the TLS handshake succeeds, the resulting secure
+/// connection is passed to the application-level connection handler.
 async fn handle_connection<F, Fut>(
     stream: TcpStream,
     client_addr: std::net::SocketAddr,

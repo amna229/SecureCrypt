@@ -1,14 +1,13 @@
 use std::error::Error;
 
 use secure_crypt::client::run_client;
-use secure_crypt::crypto::crypto_mode::CryptoMode;
-use secure_crypt::crypto::crypto_selector::get_crypto_provider;
+use secure_crypt::crypto::{CryptoConfig, CryptoMode};
 use uuid::Uuid;
 
 /// Entry point of the SecureCrypt client.
 ///
-/// It reads the client configuration from environment variables,
-/// selects the required cryptographic provider and starts the client.
+/// It reads the evaluation configuration from environment variables,
+/// creates the corresponding SecureCrypt configuration and starts the client.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     println!("Starting client...");
@@ -26,14 +25,14 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let cipher_suites: Vec<String> = std::env::var("CIPHER_SUITES")
         .unwrap_or_default()
         .split(',')
-        .filter(|s| !s.is_empty())
+        .filter(|value| !value.is_empty())
         .map(String::from)
         .collect();
 
     let kx_groups: Vec<String> = std::env::var("KX_GROUPS")
         .unwrap_or_default()
         .split(',')
-        .filter(|s| !s.is_empty())
+        .filter(|value| !value.is_empty())
         .map(String::from)
         .collect();
 
@@ -46,16 +45,12 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let evaluation_started_at =
         std::env::var("EVALUATION_STARTED_AT").expect("EVALUATION_STARTED_AT not set");
 
-    let mode = CryptoMode::new(crypto_mode);
-
-    let provider = get_crypto_provider(&mode)?;
+    let crypto_config = CryptoConfig::new(CryptoMode::new(crypto_mode), cipher_suites, kx_groups);
 
     run_client(
-        provider,
+        crypto_config,
         &server_addr,
         &server_name,
-        &cipher_suites,
-        &kx_groups,
         &config_url,
         &evaluation_started_at,
         client_id,

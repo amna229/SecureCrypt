@@ -4,13 +4,13 @@ use crate::client::transport::{
     complete_handshake, complete_transfer, create_empty_body, create_http_client,
     create_http_connection, create_upload_body, establish_tls_connection,
 };
-use crate::crypto::algorithm_provider::AlgorithmProvider;
+use crate::crypto::CryptoConfig;
+
 use http_body_util::BodyExt;
 use hyper::Request;
 use std::error::Error;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
-
 pub mod config;
 pub mod file_generator;
 pub mod metrics;
@@ -20,35 +20,26 @@ type BoxError = Box<dyn Error + Send + Sync>;
 
 /// Executes a complete client-side evaluation.
 ///
-/// The client establishes a TLS connection using the selected
-/// cryptographic provider, records the handshake metrics, waits
-/// for a transfer configuration and executes the requested
-/// upload or download operation.
+/// The client establishes a TLS connection using the provided
+/// SecureCrypt cryptographic configuration, records the handshake
+/// metrics, waits for a transfer configuration and executes the
+/// requested upload or download operation.
 pub async fn run_client(
-    provider: Box<dyn AlgorithmProvider>,
+    crypto_config: CryptoConfig,
     addr: &str,
     domain: &str,
-    selected_cipher_suites: &[String],
-    selected_kx_groups: &[String],
     config_url: &str,
     evaluation_started_at: &str,
     client_id: u32,
     evaluation_id: Uuid,
 ) -> Result<(), BoxError> {
-    let crypto_mode = provider.name().to_string();
+    let crypto_mode = crypto_config.crypto_mode.0.clone();
 
     let http_client = create_http_client()?;
 
     let handshake_id = Uuid::new_v4();
 
-    let tls_connection_result = establish_tls_connection(
-        provider,
-        addr,
-        domain,
-        selected_cipher_suites,
-        selected_kx_groups,
-    )
-    .await;
+    let tls_connection_result = establish_tls_connection(&crypto_config, addr, domain).await;
 
     let (tls_stream, handshake_duration_ms, kx_group, cipher_suite) = match tls_connection_result {
         Ok(connection) => connection,

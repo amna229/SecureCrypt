@@ -1,5 +1,5 @@
 use crate::client::metrics::CompleteHandshakeRequest;
-use crate::crypto::algorithm_provider::AlgorithmProvider;
+use crate::crypto::CryptoConfig;
 
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full, StreamBody, combinators::BoxBody};
@@ -31,17 +31,16 @@ pub fn create_http_client() -> Result<Client, BoxError> {
 
 /// Establishes a TLS connection with the evaluation server.
 ///
-/// The function measures the TLS handshake duration and
-/// extracts the negotiated key exchange group and cipher suite.
+/// The TLS configuration is obtained from the provided SecureCrypt
+/// cryptographic configuration. The function measures the TLS handshake
+/// duration and extracts the negotiated key exchange group and cipher suite.
 ///
-/// If the handshake fails, the error and the measured
-/// handshake duration are returned to the caller.
+/// If the handshake fails, the error and the measured handshake duration
+/// are returned to the caller.
 pub async fn establish_tls_connection(
-    provider: Box<dyn AlgorithmProvider>,
+    crypto_config: &CryptoConfig,
     addr: &str,
     domain: &str,
-    selected_cipher_suites: &[String],
-    selected_kx_groups: &[String],
 ) -> Result<
     (
         tokio_rustls::client::TlsStream<TcpStream>,
@@ -51,9 +50,9 @@ pub async fn establish_tls_connection(
     ),
     (BoxError, i64),
 > {
-    let config = provider
-        .build_client_config(selected_cipher_suites, selected_kx_groups)
-        .map_err(|error| (error.into(), 0))?;
+    let config = crypto_config
+        .build_client_config()
+        .map_err(|error| (error, 0))?;
 
     let tls_connector = TlsConnector::from(Arc::new(config));
 
@@ -149,6 +148,9 @@ async fn connect_to_server_tcp(addr: &str) -> Result<TcpStream, BoxError> {
 }
 
 /// Creates an HTTP/1.1 connection over an established TLS stream.
+///
+/// This function belongs to the reference HTTP/1.1 implementation.
+/// SecureCrypt itself only provides the TLS connection.
 pub async fn create_http_connection(
     tls_stream: tokio_rustls::client::TlsStream<TcpStream>,
 ) -> Result<hyper::client::conn::http1::SendRequest<BoxBody<Bytes, BoxError>>, BoxError> {

@@ -1,5 +1,4 @@
-use secure_crypt::crypto::crypto_mode::CryptoMode;
-use secure_crypt::crypto::crypto_selector::get_crypto_provider;
+use secure_crypt::crypto::{CryptoConfig, CryptoMode};
 use secure_crypt::server::http::serve_connection;
 use secure_crypt::server::run_server;
 use std::error::Error;
@@ -9,10 +8,8 @@ use tokio_util::sync::CancellationToken;
 
 /// Entry point for the SecureCrypt server.
 ///
-/// The server configuration is obtained from environment variables,
-/// including the cryptographic mode, TLS cipher suites and key exchange
-/// groups. The selected cryptographic provider is then passed to the
-/// server implementation.
+/// The server configuration is obtained from environment variables
+/// and represented through the SecureCrypt cryptographic configuration.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     println!("Starting server...");
@@ -33,9 +30,7 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         .map(String::from)
         .collect();
 
-    let mode = CryptoMode::new(crypto_mode);
-
-    let provider = get_crypto_provider(&mode)?;
+    let crypto_config = CryptoConfig::new(CryptoMode::new(crypto_mode), cipher_suites, kx_groups);
 
     let cancellation_token = CancellationToken::new();
 
@@ -45,11 +40,9 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         Arc::new(|tls_stream| async move { serve_connection(tls_stream).await });
 
     run_server(
-        provider,
+        crypto_config,
         "0.0.0.0:8443",
         cancellation_token,
-        &cipher_suites,
-        &kx_groups,
         ready_sender,
         connection_handler,
     )
