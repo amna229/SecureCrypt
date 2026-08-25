@@ -1,6 +1,8 @@
 use crate::crypto::CryptoConfig;
+use crate::crypto::tls::{accept_tls_connection, create_tls_acceptor};
 
 use std::sync::Arc;
+
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::oneshot;
 use tokio_rustls::{TlsAcceptor, server::TlsStream};
@@ -11,9 +13,9 @@ pub mod routes;
 
 /// Starts the SecureCrypt server.
 ///
-/// The server builds its TLS configuration from the provided
-/// cryptographic configuration, listens for incoming TCP connections
-/// and establishes a TLS connection with each client.
+/// The server obtains its TLS acceptor from the SecureCrypt cryptographic
+/// configuration, listens for incoming TCP connections and establishes
+/// a TLS connection with each client.
 ///
 /// Each established connection is processed independently, allowing
 /// multiple clients to communicate with the server concurrently.
@@ -33,9 +35,7 @@ where
         + Send
         + 'static,
 {
-    let config = crypto_config.build_server_config()?;
-
-    let tls_acceptor = TlsAcceptor::from(Arc::new(config));
+    let tls_acceptor = create_tls_acceptor(&crypto_config)?;
 
     let listener = TcpListener::bind(addr).await?;
 
@@ -52,12 +52,13 @@ where
             }
 
             result = listener.accept() => {
-
                 let (stream, client_addr) = result?;
 
-                let acceptor = tls_acceptor.clone();
+                let acceptor =
+                    tls_acceptor.clone();
 
-                let connection_handler = Arc::clone(&connection_handler);
+                let connection_handler =
+                    Arc::clone(&connection_handler);
 
                 tokio::spawn(async move {
                     if let Err(error) =
@@ -69,7 +70,11 @@ where
                         )
                         .await
                     {
-                        eprintln!("Error handling connection from {}: {}", client_addr, error);
+                        eprintln!(
+                            "Error handling connection from {}: {}",
+                            client_addr,
+                            error
+                        );
                     }
                 });
             }
@@ -80,7 +85,7 @@ where
 /// Establishes TLS and processes a client connection.
 ///
 /// The TCP stream is first upgraded to TLS using the configured
-/// acceptor. Once the TLS handshake succeeds, the resulting secure
+/// acceptor. Once the handshake succeeds, the resulting secure
 /// connection is passed to the application-level connection handler.
 async fn handle_connection<F, Fut>(
     stream: TcpStream,
@@ -94,7 +99,7 @@ where
         + Send
         + 'static,
 {
-    let tls_stream = acceptor.accept(stream).await?;
+    let tls_stream = accept_tls_connection(&acceptor, stream).await?;
 
     println!("Server: TLS connection established with {}", client_addr);
 

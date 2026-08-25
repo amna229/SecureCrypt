@@ -8,3 +8,4 @@ pub mod profiles;
 pub mod provider;
 pub use config::CryptoConfig;
 pub use crypto_mode::CryptoMode;
+pub mod tls;

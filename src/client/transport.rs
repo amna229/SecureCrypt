@@ -1,18 +1,13 @@
 use crate::client::metrics::CompleteHandshakeRequest;
-use crate::crypto::CryptoConfig;
+use crate::crypto::tls::connect_tls;
 
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full, StreamBody, combinators::BoxBody};
 use hyper::body::Frame;
 use hyper_util::rt::TokioIo;
 use reqwest::Client;
-use rustls::pki_types::ServerName;
 use std::convert::Infallible;
 use std::error::Error;
-use std::sync::Arc;
-use std::time::Instant;
-use tokio::net::TcpStream;
-use tokio_rustls::TlsConnector;
 use uuid::Uuid;
 
 type BoxError = Box<dyn Error + Send + Sync>;
@@ -27,67 +22,6 @@ pub fn create_http_client() -> Result<Client, BoxError> {
     let client = Client::builder().add_root_certificate(cert).build()?;
 
     Ok(client)
-}
-
-/// Establishes a TLS connection with the evaluation server.
-///
-/// The TLS configuration is obtained from the provided SecureCrypt
-/// cryptographic configuration. The function measures the TLS handshake
-/// duration and extracts the negotiated key exchange group and cipher suite.
-///
-/// If the handshake fails, the error and the measured handshake duration
-/// are returned to the caller.
-pub async fn establish_tls_connection(
-    crypto_config: &CryptoConfig,
-    addr: &str,
-    domain: &str,
-) -> Result<
-    (
-        tokio_rustls::client::TlsStream<TcpStream>,
-        i64,
-        Option<String>,
-        Option<String>,
-    ),
-    (BoxError, i64),
-> {
-    let config = crypto_config
-        .build_client_config()
-        .map_err(|error| (error, 0))?;
-
-    let tls_connector = TlsConnector::from(Arc::new(config));
-
-    let tcp_stream = connect_to_server_tcp(addr)
-        .await
-        .map_err(|error| (error, 0))?;
-
-    let server_name =
-        ServerName::try_from(domain.to_string()).map_err(|error| (error.into(), 0))?;
-
-    let handshake_started_at = Instant::now();
-
-    let tls_stream_result = tls_connector.connect(server_name, tcp_stream).await;
-
-    let handshake_duration_ms = handshake_started_at.elapsed().as_millis() as i64;
-
-    let tls_stream = match tls_stream_result {
-        Ok(tls_stream) => tls_stream,
-
-        Err(error) => {
-            return Err((error.into(), handshake_duration_ms));
-        }
-    };
-
-    let (_, tls_connection) = tls_stream.get_ref();
-
-    let cipher_suite = tls_connection
-        .negotiated_cipher_suite()
-        .map(|suite| format!("{:?}", suite.suite()));
-
-    let kx_group = tls_connection
-        .negotiated_key_exchange_group()
-        .map(|group| format!("{:?}", group.name()));
-
-    Ok((tls_stream, handshake_duration_ms, kx_group, cipher_suite))
 }
 
 /// Reports a completed TLS handshake to the application service.
@@ -140,19 +74,12 @@ pub async fn complete_transfer(
     Ok(())
 }
 
-/// Opens a TCP connection with the server.
-async fn connect_to_server_tcp(addr: &str) -> Result<TcpStream, BoxError> {
-    let stream = TcpStream::connect(addr).await?;
-
-    Ok(stream)
-}
-
 /// Creates an HTTP/1.1 connection over an established TLS stream.
 ///
 /// This function belongs to the reference HTTP/1.1 implementation.
 /// SecureCrypt itself only provides the TLS connection.
 pub async fn create_http_connection(
-    tls_stream: tokio_rustls::client::TlsStream<TcpStream>,
+    tls_stream: tokio_rustls::client::TlsStream<tokio::net::TcpStream>,
 ) -> Result<hyper::client::conn::http1::SendRequest<BoxBody<Bytes, BoxError>>, BoxError> {
     let io = TokioIo::new(tls_stream);
 

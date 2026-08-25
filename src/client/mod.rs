@@ -2,9 +2,10 @@ use crate::client::config::TransferConfig;
 use crate::client::metrics::CompleteTransferRequest;
 use crate::client::transport::{
     complete_handshake, complete_transfer, create_empty_body, create_http_client,
-    create_http_connection, create_upload_body, establish_tls_connection,
+    create_http_connection, create_upload_body,
 };
 use crate::crypto::CryptoConfig;
+use crate::crypto::tls::connect_tls;
 
 use http_body_util::BodyExt;
 use hyper::Request;
@@ -39,7 +40,7 @@ pub async fn run_client(
 
     let handshake_id = Uuid::new_v4();
 
-    let tls_connection_result = establish_tls_connection(&crypto_config, addr, domain).await;
+    let tls_connection_result = connect_tls(&crypto_config, addr, domain).await;
 
     let (tls_stream, handshake_duration_ms, kx_group, cipher_suite) = match tls_connection_result {
         Ok(connection) => connection,
