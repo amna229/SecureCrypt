@@ -4,6 +4,7 @@ use rustls::pki_types::ServerName;
 use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
+use tokio::io::DuplexStream;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::{
     TlsAcceptor, TlsConnector, client::TlsStream as ClientTlsStream,
@@ -75,7 +76,7 @@ pub async fn connect_tls(
 /// This function is useful when multiple connections need to be
 /// accepted using the same TLS configuration.
 pub fn create_tls_acceptor(crypto_config: &CryptoConfig) -> Result<TlsAcceptor, BoxError> {
-    let config = crypto_config.build_server_config()?;
+    let config: rustls::ServerConfig = crypto_config.build_server_config()?;
 
     Ok(TlsAcceptor::from(Arc::new(config)))
 }
@@ -107,4 +108,51 @@ pub async fn accept_tls_connection(
     let tls_stream = acceptor.accept(stream).await?;
 
     Ok(tls_stream)
+}
+
+/// Creates an in-memory application stream connected to a TLS connection.
+///
+/// The returned stream is used by the application protocol. SecureCrypt
+/// transparently forwards data between the application stream and TLS.
+pub async fn connect_application_stream(
+    crypto_config: &CryptoConfig,
+    addr: &str,
+    domain: &str,
+) -> Result<(DuplexStream, i64, Option<String>, Option<String>), (BoxError, i64)> {
+    let (tls_stream, handshake_duration_ms, kx_group, cipher_suite) =
+        connect_tls(crypto_config, addr, domain).await?;
+
+    let (app_stream, securecrypt_stream) = tokio::io::duplex(64 * 1024);
+
+    tokio::spawn(async move {
+        let mut app_side = securecrypt_stream;
+        let mut tls_side = tls_stream;
+
+        if let Err(error) = tokio::io::copy_bidirectional(&mut app_side, &mut tls_side).await {
+            eprintln!("SecureCrypt application stream failed: {}", error);
+        }
+    });
+
+    Ok((app_stream, handshake_duration_ms, kx_group, cipher_suite))
+}
+
+/// Creates an in-memory application stream connected to an established
+/// TLS server connection.
+///
+/// The returned stream is intended to be consumed by the application
+/// protocol. SecureCrypt transparently forwards data between the
+/// application stream and the TLS connection.
+pub fn create_application_stream(tls_stream: ServerTlsStream<TcpStream>) -> DuplexStream {
+    let (app_stream, securecrypt_stream) = tokio::io::duplex(256 * 1024);
+
+    tokio::spawn(async move {
+        let mut app_side = securecrypt_stream;
+        let mut tls_side = tls_stream;
+
+        if let Err(error) = tokio::io::copy_bidirectional(&mut app_side, &mut tls_side).await {
+            eprintln!("SecureCrypt application stream failed: {}", error);
+        }
+    });
+
+    app_stream
 }

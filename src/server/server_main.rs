@@ -1,8 +1,11 @@
 use secure_crypt::crypto::{CryptoConfig, CryptoMode};
 use secure_crypt::server::http::serve_connection;
 use secure_crypt::server::run_server;
+
 use std::error::Error;
 use std::sync::Arc;
+
+use tokio::io::DuplexStream;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
@@ -36,8 +39,9 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let (ready_sender, _ready_receiver) = oneshot::channel();
 
-    let connection_handler =
-        Arc::new(|tls_stream| async move { serve_connection(tls_stream).await });
+    let connection_handler = Arc::new(|application_stream: DuplexStream| async move {
+        serve_connection(application_stream).await
+    });
 
     run_server(
         crypto_config,
