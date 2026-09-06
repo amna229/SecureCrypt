@@ -2,7 +2,7 @@
 //!
 //! This module defines the HTTP routes exposed by the dashboard,
 //! including page rendering, configuration management, evaluation
-//! control, event streaming, and result retrieval.
+//! control, event streaming, result retrieval, and static resources.
 
 use crate::dashboard::{
     handlers::{
@@ -10,7 +10,9 @@ use crate::dashboard::{
             application_status, client_status, save_client_config, save_server_config,
         },
         evaluation::{current_evaluation, reset_evaluation, start_evaluation, stop_application},
-        events::{evaluation_events, transfer_event, transfer_events},
+        events::{
+            client_finished, evaluation_events, handshake_event, transfer_event, transfer_events,
+        },
         pages::{client, dashboard, results, server},
         results::{results_data, results_pdf},
     },
@@ -21,18 +23,14 @@ use axum::{
     Router,
     routing::{get, post},
 };
-
 use http::{HeaderValue, Method};
-
 use std::sync::Arc;
-
 use tower_http::{cors::CorsLayer, services::ServeDir};
 
 /// Creates the HTTP router for the dashboard.
 ///
-/// The router connects each HTTP endpoint with its corresponding
-/// handler and configures CORS, shared application state, and
-/// static file serving.
+/// The dashboard exposes the HTML pages, evaluation control endpoints,
+/// event streams, result endpoints and static CSS/JavaScript resources.
 pub fn create_router(state: Arc<DashboardState>) -> Router {
     let application_url =
         std::env::var("APPLICATION_URL").unwrap_or_else(|_| "https://127.0.0.1:8443".to_string());
@@ -45,6 +43,8 @@ pub fn create_router(state: Arc<DashboardState>) -> Router {
         .allow_origin(application_origin)
         .allow_methods([Method::GET, Method::POST])
         .allow_headers(tower_http::cors::Any);
+
+    let static_directory = concat!(env!("CARGO_MANIFEST_DIR"), "/src/dashboard/ui");
 
     Router::new()
         .route("/", get(dashboard))
@@ -64,7 +64,9 @@ pub fn create_router(state: Arc<DashboardState>) -> Router {
         .route("/eval/reset", post(reset_evaluation))
         .route("/results/data", get(results_data))
         .route("/results/pdf", get(results_pdf))
-        .nest_service("/static", ServeDir::new("src/dashboard/ui"))
+        .route("/eval/handshake-event", post(handshake_event))
+        .route("/eval/client-finished", post(client_finished))
+        .nest_service("/static", ServeDir::new(static_directory))
         .with_state(state)
         .layer(cors)
 }

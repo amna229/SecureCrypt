@@ -1,0 +1,339 @@
+//! Dashboard application.
+//!
+//! This module initializes the dashboard database connection, shared state,
+//! HTTP router, and asynchronous HTTP server.
+
+pub mod database;
+pub mod handlers;
+pub mod metrics;
+pub mod routes;
+pub mod services;
+pub mod state;
+pub mod ui;
+
+use crate::dashboard::database::create_storage;
+use crate::dashboard::routes::create_router;
+use crate::dashboard::state::DashboardState;
+
+use std::error::Error;
+use std::sync::Arc;
+use tokio::net::TcpListener;
+
+/// Starts the dashboard HTTP server.
+///
+/// The executable path is provided by the application embedding the
+/// SecureCrypt library and stored in the shared dashboard state.
+pub async fn run_dashboard(
+    application_program: String,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let storage = create_storage().await;
+
+    let state = Arc::new(DashboardState::new(storage));
+
+    state.set_application_program(application_program).await;
+
+    let app = create_router(state);
+
+    let listener = TcpListener::bind("0.0.0.0:3000").await?;
+
+    println!("Dashboard at http://0.0.0.0:3000");
+
+    axum::serve(listener, app).await?;
+
+    Ok(())
+}
+//! Dashboard HTTP route configuration.
+//!
+//! This module defines the HTTP routes exposed by the dashboard,
+//! including page rendering, configuration management, evaluation
+//! control, event streaming, result retrieval, and static resources.
+
+use crate::dashboard::{
+    handlers::{
+        configuration::{
+            application_status, client_status, save_client_config, save_server_config,
+        },
+        evaluation::{current_evaluation, reset_evaluation, start_evaluation, stop_application},
+        events::{
+            client_finished, evaluation_events, handshake_event, transfer_event, transfer_events,
+        },
+        pages::{client, dashboard, results, server},
+        results::{results_data, results_pdf},
+    },
+    state::DashboardState,
+};
+
+use axum::{
+    Router,
+    routing::{get, post},
+};
+use http::{HeaderValue, Method};
+use std::sync::Arc;
+use tower_http::{cors::CorsLayer, services::ServeDir};
+
+/// Creates the HTTP router for the dashboard.
+///
+/// The dashboard exposes the HTML pages, evaluation control endpoints,
+/// event streams, result endpoints and static CSS/JavaScript resources.
+pub fn create_router(state: Arc<DashboardState>) -> Router {
+    let application_url =
+        std::env::var("APPLICATION_URL").unwrap_or_else(|_| "https://127.0.0.1:8443".to_string());
+
+    let application_origin = application_url
+        .parse::<HeaderValue>()
+        .expect("Invalid APPLICATION_URL");
+
+    let cors = CorsLayer::new()
+        .allow_origin(application_origin)
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers(tower_http::cors::Any);
+
+    let static_directory = concat!(env!("CARGO_MANIFEST_DIR"), "/src/dashboard/ui");
+
+    Router::new()
+        .route("/", get(dashboard))
+        .route("/server", get(server))
+        .route("/client", get(client))
+        .route("/results", get(results))
+        .route("/info/server", post(save_server_config))
+        .route("/info/client", post(save_client_config))
+        .route("/info/client/status", get(client_status))
+        .route("/info/application/status", get(application_status))
+        .route("/eval/start", post(start_evaluation))
+        .route("/eval/current", get(current_evaluation))
+        .route("/eval/transfer-event", post(transfer_event))
+        .route("/eval/transfer-events", get(transfer_events))
+        .route("/eval/evaluation-events", get(evaluation_events))
+        .route("/eval/stop", post(stop_application))
+        .route("/eval/reset", post(reset_evaluation))
+        .route("/results/data", get(results_data))
+        .route("/results/pdf", get(results_pdf))
+        .route("/eval/handshake-event", post(handshake_event))
+        .route("/eval/client-finished", post(client_finished))
+        .nest_service("/static", ServeDir::new(static_directory))
+        .with_state(state)
+        .layer(cors)
+}
+//! Shared state and data structures used by the dashboard.
+//!
+//! This module defines the configuration structures, dashboard events,
+//! and shared runtime state used by the dashboard services and handlers.
+
+use crate::crypto::crypto_mode::CryptoMode;
+use crate::dashboard::services::application::ApplicationService;
+
+use std::collections::HashSet;
+use tokio::process::Child;
+use tokio::sync::{Mutex, broadcast};
+use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct ServerConfig {
+    pub key_exchange: CryptoMode,
+    pub cipher_suites: Vec<String>,
+    pub kx_groups: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct ClientConfig {
+    pub key_exchange: CryptoMode,
+    pub cipher_suites: Vec<String>,
+    pub kx_groups: Vec<String>,
+    pub server_addr: String,
+    pub server_name: String,
+    pub num_connections: u32,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct EvaluationEvent {
+    pub event_type: String,
+    pub evaluation_id: Uuid,
+    pub client_id: Option<i32>,
+    pub completed: i64,
+    pub total: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(tag = "type")]
+pub enum DashboardEvent {
+    #[serde(rename = "transfer")]
+    Transfer {
+        event_type: String,
+        evaluation_id: Uuid,
+        execution_id: String,
+        client_id: i32,
+        operation: String,
+        success: bool,
+        completed: i64,
+        total: i64,
+        all_completed: bool,
+    },
+
+    #[serde(rename = "evaluation")]
+    Evaluation {
+        event_type: String,
+        evaluation_id: Uuid,
+        client_id: Option<i32>,
+        completed: i64,
+        total: i64,
+    },
+}
+
+pub struct DashboardState {
+    pub client_configs: Mutex<Vec<ClientConfig>>,
+    pub server_config: Mutex<Option<ServerConfig>>,
+    pub is_evaluation_running: Mutex<bool>,
+    pub application_running: Mutex<bool>,
+    pub evaluation_id: Mutex<Option<Uuid>>,
+    pub db: crate::dashboard::database::storage::DashboardStorage,
+    pub resource_monitor:
+        Mutex<Option<crate::dashboard::services::resource_monitor::ResourceMonitor>>,
+    pub resource_monitor_token: Mutex<CancellationToken>,
+    pub transfer_events: broadcast::Sender<DashboardEvent>,
+    pub evaluation_events: broadcast::Sender<EvaluationEvent>,
+    pub application_service: Mutex<Option<ApplicationService>>,
+    pub application_process: Mutex<Option<Child>>,
+    pub application_program: Mutex<Option<String>>,
+    pub completed_clients: Mutex<HashSet<(Uuid, i32)>>,
+}
+
+impl DashboardState {
+    pub fn new(db: crate::dashboard::database::storage::DashboardStorage) -> Self {
+        let (transfer_events, _) = broadcast::channel(100);
+        let (evaluation_events, _) = broadcast::channel(100);
+
+        Self {
+            client_configs: Mutex::new(Vec::new()),
+            server_config: Mutex::new(None),
+            is_evaluation_running: Mutex::new(false),
+            application_running: Mutex::new(false),
+            evaluation_id: Mutex::new(None),
+            db,
+            resource_monitor: Mutex::new(None),
+            resource_monitor_token: Mutex::new(CancellationToken::new()),
+            transfer_events,
+            evaluation_events,
+            application_service: Mutex::new(None),
+            application_process: Mutex::new(None),
+            application_program: Mutex::new(None),
+            completed_clients: Mutex::new(HashSet::new()),
+        }
+    }
+
+    pub async fn is_evaluation_running(&self) -> bool {
+        *self.is_evaluation_running.lock().await
+    }
+
+    pub async fn set_application_program(&self, application_program: String) {
+        let mut program = self.application_program.lock().await;
+        *program = Some(application_program);
+    }
+
+    pub async fn application_program(&self) -> Option<String> {
+        self.application_program.lock().await.clone()
+    }
+}
+//! Dashboard storage backends.
+//!
+//! The dashboard can use PostgreSQL for persistent evaluations or an
+//! in-memory backend for standalone executions where no database is
+//! available. The in-memory backend is intentionally process-local and
+//! contains no persistent data.
+
+use chrono::{DateTime, Utc};
+use sqlx::PgPool;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use uuid::Uuid;
+
+#[derive(Debug, Clone)]
+pub struct MemoryEvaluation {
+    pub id: Uuid,
+    pub crypto_mode: String,
+    pub num_clients: i32,
+    pub started_at: DateTime<Utc>,
+    pub finished_at: Option<DateTime<Utc>>,
+    pub status: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct MemoryHandshake {
+    pub handshake_id: Uuid,
+    pub evaluation_id: Uuid,
+    pub client_id: i32,
+    pub handshake_duration_ms: Option<i64>,
+    pub kx_group: Option<String>,
+    pub cipher_suite: Option<String>,
+    pub success: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MemoryTransfer {
+    pub execution_id: String,
+    pub transfer_id: Uuid,
+    pub evaluation_id: Uuid,
+    pub client_id: i32,
+    pub operation: String,
+    pub file_size: i64,
+    pub file_size_unit: String,
+    pub num_files: i32,
+    pub bytes_transferred: Option<i64>,
+    pub duration_ms: Option<i64>,
+    pub throughput_mbps: Option<f64>,
+    pub crypto_mode: Option<String>,
+    pub kx_group: Option<String>,
+    pub cipher_suite: Option<String>,
+    pub success: Option<bool>,
+    pub error_type: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub finished_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MemoryResource {
+    pub resource_id: Uuid,
+    pub evaluation_id: Uuid,
+    pub role: String,
+    pub client_id: Option<i32>,
+    pub timestamp: DateTime<Utc>,
+    pub cpu_avg_percent: f64,
+    pub cpu_peak_percent: f64,
+    pub memory_peak_bytes: i64,
+}
+
+#[derive(Debug, Default)]
+pub struct MemoryDatabase {
+    pub evaluations: Vec<MemoryEvaluation>,
+    pub handshakes: Vec<MemoryHandshake>,
+    pub transfers: Vec<MemoryTransfer>,
+    pub resources: Vec<MemoryResource>,
+}
+
+#[derive(Clone)]
+pub enum DashboardStorage {
+    Postgres(PgPool),
+    Memory(Arc<Mutex<MemoryDatabase>>),
+}
+
+impl DashboardStorage {
+    pub fn memory() -> Self {
+        Self::Memory(Arc::new(Mutex::new(MemoryDatabase::default())))
+    }
+
+    pub fn postgres(pool: PgPool) -> Self {
+        Self::Postgres(pool)
+    }
+
+    pub fn is_memory(&self) -> bool {
+        matches!(self, Self::Memory(_))
+    }
+
+    pub fn postgres_pool(&self) -> Option<PgPool> {
+        match self {
+            Self::Postgres(pool) => Some(pool.clone()),
+            Self::Memory(_) => None,
+        }
+    }
+}

@@ -2,8 +2,8 @@
  * Client configuration interface.
  *
  * Handles cryptographic configuration, key exchange selection,
- * connection validation, configuration persistence, and application
- * access once the client configuration has been stored.
+ * connection validation, configuration persistence, evaluation
+ * control and access to evaluation results.
  */
 
 const classicalRadio =
@@ -51,6 +51,16 @@ const saveButton =
         "save-button"
     );
 
+const applicationButton =
+    document.getElementById(
+        "application-button"
+    );
+
+const resultsButton =
+    document.getElementById(
+        "results-button"
+    );
+
 const cipherError =
     document.getElementById(
         "cipher-error"
@@ -60,6 +70,12 @@ const kxError =
     document.getElementById(
         "kx-error"
     );
+
+let evaluationRunning =
+    false;
+
+let evaluationFinished =
+    false;
 
 /**
  * Returns the key exchange container corresponding
@@ -114,10 +130,6 @@ function updateKxGroups() {
 
 /**
  * Validates the current client configuration.
- *
- * At least one cipher suite and one key exchange
- * group must be selected, and the number of connections
- * must be within the allowed range.
  */
 function updateValidation() {
     const selectedCiphers =
@@ -158,7 +170,8 @@ function updateValidation() {
     saveButton.disabled =
         noCiphersSelected ||
         noKxSelected ||
-        invalidNumConnections;
+        invalidNumConnections ||
+        evaluationRunning;
 }
 
 /**
@@ -180,8 +193,7 @@ function normalizeConnections() {
 }
 
 /**
- * Builds the client configuration object from
- * the current form values.
+ * Builds the client configuration object.
  *
  * @returns {Object}
  */
@@ -251,9 +263,6 @@ async function saveConfiguration() {
 
 /**
  * Checks whether a client configuration has been stored.
- *
- * When a valid configuration exists, the application
- * navigation button is enabled.
  */
 async function checkClientConfiguration() {
     const response =
@@ -264,22 +273,144 @@ async function checkClientConfiguration() {
     const configured =
         await response.json();
 
-    const applicationButton =
-        document.getElementById(
-            "application-button"
+    if (!configured) {
+        applicationButton.disabled =
+            true;
+
+        return;
+    }
+
+    if (!evaluationRunning) {
+        applicationButton.disabled =
+            false;
+    }
+}
+
+/**
+ * Starts the evaluation.
+ *
+ * The browser does not navigate to port 8443.
+ */
+async function startEvaluation() {
+    applicationButton.disabled =
+        true;
+
+    resultsButton.disabled =
+        true;
+
+    evaluationRunning =
+        true;
+
+    evaluationFinished =
+        false;
+
+    saveButton.disabled =
+        true;
+
+    try {
+        const response =
+            await fetch(
+                "/eval/start",
+                {
+                    method: "POST"
+                }
+            );
+
+        if (!response.ok) {
+            const errorText =
+                await response.text();
+
+            throw new Error(
+                errorText ||
+                "Failed to start evaluation"
+            );
+        }
+
+        console.log(
+            "Evaluation started"
         );
 
-    if (configured) {
+    } catch (error) {
+        console.error(
+            "Error starting evaluation:",
+            error
+        );
+
+        evaluationRunning =
+            false;
+
         applicationButton.disabled =
             false;
 
-        applicationButton.onclick =
-            async () => {
-                window.location.assign(
-                    applicationButton.dataset.url
-                );
-            };
+        updateValidation();
+
+        alert(
+            "The evaluation could not be started."
+        );
     }
+}
+
+/**
+ * Monitors evaluation lifecycle events sent by
+ * the dashboard through Server-Sent Events.
+ */
+function listenForEvaluationEvents() {
+    const eventSource =
+        new EventSource(
+            "/eval/evaluation-events"
+        );
+
+    eventSource.addEventListener(
+        "environment-stopped",
+        () => {
+            evaluationRunning =
+                false;
+
+            evaluationFinished =
+                true;
+
+            applicationButton.disabled =
+                true;
+
+            resultsButton.disabled =
+                false;
+
+            updateValidation();
+
+            alert(
+                "The evaluation has finished."
+            );
+        }
+    );
+
+    eventSource.addEventListener(
+        "environment-ready",
+        () => {
+            evaluationRunning =
+                true;
+        }
+    );
+
+    eventSource.onerror =
+        error => {
+            console.error(
+                "Evaluation event connection error:",
+                error
+            );
+        };
+}
+
+/**
+ * Opens the results page once the evaluation
+ * has completed.
+ */
+function openResults() {
+    if (!evaluationFinished) {
+        return;
+    }
+
+    window.location.href =
+        "/results";
 }
 
 numConnections.addEventListener(
@@ -327,5 +458,16 @@ saveButton.addEventListener(
     saveConfiguration
 );
 
+applicationButton.addEventListener(
+    "click",
+    startEvaluation
+);
+
+resultsButton.addEventListener(
+    "click",
+    openResults
+);
+
 updateKxGroups();
 checkClientConfiguration();
+listenForEvaluationEvents();

@@ -11,7 +11,7 @@ pub mod services;
 pub mod state;
 pub mod ui;
 
-use crate::dashboard::database::create_pool;
+use crate::dashboard::database::create_storage;
 use crate::dashboard::routes::create_router;
 use crate::dashboard::state::DashboardState;
 
@@ -21,13 +21,16 @@ use tokio::net::TcpListener;
 
 /// Starts the dashboard HTTP server.
 ///
-/// The function initializes the database connection pool, creates the
-/// shared dashboard state, builds the HTTP router, and starts listening
-/// for incoming HTTP requests.
-pub async fn run_dashboard() -> Result<(), Box<dyn Error + Send + Sync>> {
-    let db = create_pool().await?;
+/// The executable path is provided by the application embedding the
+/// SecureCrypt library and stored in the shared dashboard state.
+pub async fn run_dashboard(
+    application_program: String,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let storage = create_storage().await;
 
-    let state = Arc::new(DashboardState::new(db));
+    let state = Arc::new(DashboardState::new(storage));
+
+    state.set_application_program(application_program).await;
 
     let app = create_router(state);
 

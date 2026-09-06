@@ -1,3 +1,5 @@
+//! Docker container management.
+
 use crate::dashboard::services::manager::Manager;
 use crate::dashboard::state::{ClientConfig, ServerConfig};
 
@@ -5,10 +7,15 @@ use bollard::models::ContainerCreateBody;
 use bollard::query_parameters::{CreateContainerOptionsBuilder, RemoveContainerOptionsBuilder};
 
 impl Manager {
-    /// Creates and starts the evaluation server container using
-    /// the selected cryptographic configuration.
+    /// Creates and starts the evaluation server container.
     pub(crate) async fn start_server_container(&self, config: &ServerConfig) -> Result<(), String> {
+        let docker = self
+            .docker
+            .as_ref()
+            .ok_or_else(|| "Docker is not available".to_string())?;
+
         let cipher_suites = config.cipher_suites.join(",");
+
         let kx_groups = config.kx_groups.join(",");
 
         let env = vec![
@@ -27,7 +34,7 @@ impl Manager {
             .name("securecrypt-server")
             .build();
 
-        self.docker
+        docker
             .create_container(Some(options), container_config)
             .await
             .map_err(|e| e.to_string())?;
@@ -35,7 +42,7 @@ impl Manager {
         self.connect_container_to_evaluation_network("securecrypt-server", &["securecrypt-server"])
             .await?;
 
-        self.docker
+        docker
             .start_container("securecrypt-server", None)
             .await
             .map_err(|e| e.to_string())?;
@@ -51,6 +58,10 @@ impl Manager {
         configs: &[ClientConfig],
         evaluation_started_at: i64,
     ) -> Result<(), String> {
+        if self.docker.is_none() {
+            return Err("Docker is not available".to_string());
+        }
+
         for config in configs {
             for client_id in 0..config.num_connections {
                 self.start_client_container(client_id, config, evaluation_started_at)
@@ -61,14 +72,18 @@ impl Manager {
         Ok(())
     }
 
-    /// Creates and starts a single client container using
-    /// the configured cryptographic parameters.
+    /// Creates and starts a single client container.
     pub(crate) async fn start_client_container(
         &self,
         client_id: u32,
         config: &ClientConfig,
         evaluation_started_at: i64,
     ) -> Result<(), String> {
+        let docker = self
+            .docker
+            .as_ref()
+            .ok_or_else(|| "Docker is not available".to_string())?;
+
         let cipher_suites = config.cipher_suites.join(",");
 
         let kx_groups = config.kx_groups.join(",");
@@ -105,7 +120,7 @@ impl Manager {
             .name(&container_name)
             .build();
 
-        self.docker
+        docker
             .create_container(Some(options), container_config)
             .await
             .map_err(|e| e.to_string())?;
@@ -113,7 +128,7 @@ impl Manager {
         self.connect_container_to_evaluation_network(&container_name, &[&container_name])
             .await?;
 
-        self.docker
+        docker
             .start_container(&container_name, None)
             .await
             .map_err(|e| e.to_string())?;
@@ -133,10 +148,13 @@ impl Manager {
         Ok(())
     }
 
-    /// Removes a client container from the Docker environment.
+    /// Removes a client container.
     pub(crate) async fn remove_client_container(&self, container_name: &str) {
-        let _ = self
-            .docker
+        let Some(docker) = self.docker.as_ref() else {
+            return;
+        };
+
+        let _ = docker
             .remove_container(
                 container_name,
                 Some(RemoveContainerOptionsBuilder::default().force(true).build()),
@@ -146,8 +164,11 @@ impl Manager {
 
     /// Removes the evaluation server container.
     pub(crate) async fn remove_server_container(&self) {
-        let _ = self
-            .docker
+        let Some(docker) = self.docker.as_ref() else {
+            return;
+        };
+
+        let _ = docker
             .remove_container(
                 "securecrypt-server",
                 Some(RemoveContainerOptionsBuilder::default().force(true).build()),

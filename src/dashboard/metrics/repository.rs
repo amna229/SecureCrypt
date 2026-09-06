@@ -1,28 +1,25 @@
 //! Evaluation repository.
 //!
-//! This module provides database operations for creating and
-//! completing evaluations.
+//! This module stores and completes evaluation records using either
+//! PostgreSQL or temporary in-memory storage.
+
+use crate::dashboard::database::storage::{DashboardStorage, MemoryEvaluation};
 
 use chrono::{DateTime, Utc};
-
-use sqlx::PgPool;
-
 use uuid::Uuid;
 
-/// Provides database operations for evaluations.
+/// Provides storage operations for evaluations.
 pub struct EvaluationRepository {
-    pool: PgPool,
+    storage: DashboardStorage,
 }
 
 impl EvaluationRepository {
-    /// Creates a new evaluation repository using the provided database pool.
-    pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+    /// Creates an evaluation repository using the selected storage backend.
+    pub fn new(storage: DashboardStorage) -> Self {
+        Self { storage }
     }
 
-    /// Creates a new evaluation record in the database.
-    ///
-    /// New evaluations are initially stored with the `running` status.
+    /// Creates a new running evaluation.
     pub async fn create(
         &self,
         id: Uuid,
@@ -30,63 +27,113 @@ impl EvaluationRepository {
         num_clients: i32,
         started_at: DateTime<Utc>,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            "INSERT INTO evaluation (
-                id,
-                crypto_mode,
-                num_clients,
-                started_at,
-                status
-            )
-            VALUES ($1, $2, $3, $4, $5)",
-        )
-        .bind(id)
-        .bind(crypto_mode)
-        .bind(num_clients)
-        .bind(started_at)
-        .bind("running")
-        .execute(&self.pool)
-        .await?;
+        match &self.storage {
+            DashboardStorage::Postgres(pool) => {
+                sqlx::query(
+                    "INSERT INTO evaluation (
+                        id,
+                        crypto_mode,
+                        num_clients,
+                        started_at,
+                        status
+                    )
+                    VALUES ($1, $2, $3, $4, $5)",
+                )
+                .bind(id)
+                .bind(crypto_mode)
+                .bind(num_clients)
+                .bind(started_at)
+                .bind("running")
+                .execute(pool)
+                .await?;
 
-        Ok(())
+                Ok(())
+            }
+
+            DashboardStorage::Memory(database) => {
+                let mut database = database.lock().await;
+
+                database.evaluations.push(MemoryEvaluation {
+                    id,
+                    crypto_mode: crypto_mode.to_string(),
+                    num_clients,
+                    started_at,
+                    finished_at: None,
+                    status: "running".to_string(),
+                });
+
+                Ok(())
+            }
+        }
     }
 
-    /// Retrieves the completion timestamp of the latest finished transfer
-    /// associated with the given evaluation.
+    /// Retrieves the latest completed transfer timestamp associated
+    /// with an evaluation.
     pub async fn get_last_transfer_finished_at(
         &self,
         evaluation_id: Uuid,
     ) -> Result<Option<DateTime<Utc>>, sqlx::Error> {
-        sqlx::query_scalar(
-            "SELECT MAX(finished_at)
-            FROM transfer
-            WHERE evaluation_id = $1
-            AND finished_at IS NOT NULL",
-        )
-        .bind(evaluation_id)
-        .fetch_one(&self.pool)
-        .await
+        match &self.storage {
+            DashboardStorage::Postgres(pool) => {
+                sqlx::query_scalar(
+                    "SELECT MAX(finished_at)
+                     FROM transfer
+                     WHERE evaluation_id = $1
+                     AND finished_at IS NOT NULL",
+                )
+                .bind(evaluation_id)
+                .fetch_one(pool)
+                .await
+            }
+
+            DashboardStorage::Memory(database) => {
+                let database = database.lock().await;
+
+                Ok(database
+                    .transfers
+                    .iter()
+                    .filter(|transfer| transfer.evaluation_id == evaluation_id)
+                    .filter_map(|transfer| transfer.finished_at)
+                    .max())
+            }
+        }
     }
 
-    /// Marks an evaluation as finished.
-    ///
-    /// The evaluation completion timestamp is obtained from the latest
-    /// completed transfer associated with the evaluation.
+    /// Marks an evaluation as completed.
     pub async fn finish(&self, id: Uuid, status: &str) -> Result<(), sqlx::Error> {
         let finished_at = self.get_last_transfer_finished_at(id).await?;
 
-        sqlx::query(
-            "UPDATE evaluation
-            SET finished_at = $1,
-                status = $2
-            WHERE id = $3",
-        )
-        .bind(finished_at)
-        .bind(status)
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
+        match &self.storage {
+            DashboardStorage::Postgres(pool) => {
+                sqlx::query(
+                    "UPDATE evaluation
+                     SET finished_at = $1,
+                         status = $2
+                     WHERE id = $3",
+                )
+                .bind(finished_at)
+                .bind(status)
+                .bind(id)
+                .execute(pool)
+                .await?;
 
-        Ok(())
+                Ok(())
+            }
+
+            DashboardStorage::Memory(database) => {
+                let mut database = database.lock().await;
+
+                if let Some(evaluation) = database
+                    .evaluations
+                    .iter_mut()
+                    .find(|evaluation| evaluation.id == id)
+                {
+                    evaluation.finished_at = finished_at;
+                    evaluation.status = status.to_string();
+                }
+
+                Ok(())
+            }
+        }
     }
 }

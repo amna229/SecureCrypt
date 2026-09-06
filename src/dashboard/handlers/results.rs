@@ -1,4 +1,5 @@
 use crate::dashboard::{
+    database::storage::DashboardStorage,
     metrics::results_repository::{ResultsData, ResultsRepository},
     services::results_report::build_results_report_html,
     state::DashboardState,
@@ -11,7 +12,7 @@ use axum::{
     response::Response,
 };
 
-use chrono::NaiveDate;
+use chrono::{Local, NaiveDate};
 
 use headless_chrome::{Browser, LaunchOptions};
 
@@ -22,23 +23,11 @@ pub struct ResultsQuery {
     pub date: Option<String>,
 }
 
-/// Returns the date used to retrieve dashboard results.
-async fn get_current_date(state: &DashboardState) -> Result<NaiveDate, StatusCode> {
-    let time_zone = std::env::var("TIME_ZONE").unwrap_or_else(|_| "Europe/Madrid".to_string());
-
-    sqlx::query_scalar::<_, NaiveDate>(
-        "SELECT (
-            CURRENT_TIMESTAMP AT TIME ZONE $1
-        )::date",
-    )
-    .bind(time_zone)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|error| {
-        eprintln!("Error getting current date: {}", error);
-
-        StatusCode::INTERNAL_SERVER_ERROR
-    })
+/// Returns the current date used by the results endpoint.
+fn get_current_date(state: &DashboardState) -> NaiveDate {
+    match &state.db {
+        DashboardStorage::Postgres(_) | DashboardStorage::Memory(_) => Local::now().date_naive(),
+    }
 }
 
 /// Returns the evaluation results for the requested date.
@@ -51,7 +40,7 @@ pub async fn results_data(
             NaiveDate::parse_from_str(&value, "%Y-%m-%d").map_err(|_| StatusCode::BAD_REQUEST)?
         }
 
-        None => get_current_date(&state).await?,
+        None => get_current_date(&state),
     };
 
     let repository = ResultsRepository::new(state.db.clone());
@@ -77,7 +66,7 @@ pub async fn results_pdf(
             NaiveDate::parse_from_str(&value, "%Y-%m-%d").map_err(|_| StatusCode::BAD_REQUEST)?
         }
 
-        None => get_current_date(&state).await?,
+        None => get_current_date(&state),
     };
 
     let repository = ResultsRepository::new(state.db.clone());
@@ -91,13 +80,11 @@ pub async fn results_pdf(
     let html = build_results_report_html(&data, true);
 
     let pdf_bytes = tokio::task::spawn_blocking(move || {
-        let mut args = Vec::new();
-
-        args.push(std::ffi::OsStr::new("--no-sandbox"));
-
-        args.push(std::ffi::OsStr::new("--disable-setuid-sandbox"));
-
-        args.push(std::ffi::OsStr::new("--disable-gpu"));
+        let args = vec![
+            std::ffi::OsStr::new("--no-sandbox"),
+            std::ffi::OsStr::new("--disable-setuid-sandbox"),
+            std::ffi::OsStr::new("--disable-gpu"),
+        ];
 
         let options = LaunchOptions::default_builder()
             .args(args)
@@ -123,7 +110,11 @@ pub async fn results_pdf(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     .map_err(|error| {
-        eprintln!("Error generating PDF with headless_chrome: {}", error);
+        eprintln!(
+            "Error generating PDF with \
+                 headless_chrome: {}",
+            error
+        );
 
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
@@ -133,7 +124,8 @@ pub async fn results_pdf(
         .header(header::CONTENT_TYPE, "application/pdf")
         .header(
             header::CONTENT_DISPOSITION,
-            "attachment; filename=\"securecrypt_results.pdf\"",
+            "attachment; \
+             filename=\"securecrypt_results.pdf\"",
         )
         .body(Body::from(pdf_bytes))
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)

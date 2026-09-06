@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 
-<html lang="es">
+<html lang="en">
 
 <head>
 
@@ -32,7 +32,7 @@
         href="/static/css/common.css"
     >
 
-    <title>Configuración del cliente</title>
+    <title>Client Configuration</title>
 
 </head>
 
@@ -48,26 +48,27 @@
                 class="tab"
                 onclick="window.location.href='/server?transfer_id=' + encodeURIComponent(new URLSearchParams(window.location.search).get('transfer_id'))"
             >
-                Servidor
+                Server
             </button>
+
 
             <button
                 class="tab active"
                 onclick="window.location.href='/client?transfer_id=' + encodeURIComponent(new URLSearchParams(window.location.search).get('transfer_id'))"
             >
-                Cliente
+                Client
             </button>
 
         </div>
 
 
         <h1>
-            Configuración del cliente
+            Client Configuration
         </h1>
 
 
         <h3>
-            Por favor selecciona el modo de intercambio de clave:
+            Please select the key exchange mode:
         </h3>
 
 
@@ -82,7 +83,7 @@
                     checked
                 >
 
-                Clásico
+                Classical
 
             </label>
 
@@ -95,7 +96,7 @@
                     value="post_quantum"
                 >
 
-                Post-Cuántico
+                Post-Quantum
 
             </label>
 
@@ -157,7 +158,7 @@
             id="cipher-error"
             class="error-message"
         >
-            Debes seleccionar al menos una Cipher Suite.
+            You must select at least one cipher suite.
         </div>
 
 
@@ -254,12 +255,12 @@
             id="kx-error"
             class="error-message"
         >
-            Debes seleccionar al menos un KX Group.
+            You must select at least one KX group.
         </div>
 
 
         <h3>
-            Dirección del servidor:
+            Server address:
         </h3>
 
 
@@ -270,14 +271,14 @@
                 id="server-addr"
                 name="server_addr"
                 value="securecrypt-server:8443"
-                placeholder="host:puerto"
+                placeholder="host:port"
             >
 
         </div>
 
 
         <h3>
-            Nombre del servidor TLS:
+            TLS server name:
         </h3>
 
 
@@ -288,14 +289,14 @@
                 id="server-name"
                 name="server_name"
                 value="localhost"
-                placeholder="nombre del certificado"
+                placeholder="certificate name"
             >
 
         </div>
 
 
         <h3>
-            Número de conexiones:
+            Number of connections:
         </h3>
 
 
@@ -318,21 +319,33 @@
             class="save-button"
             type="button"
         >
-            Guardar
+            Save
         </button>
 
 
     </div>
 
 
-    <button
-        id="application-button"
-        class="application-button"
-        data-url="{{APPLICATION_URL}}"
-        disabled
-    >
-        Go to<br>Application
-    </button>
+    <div class="application-actions">
+
+        <button
+            id="application-button"
+            class="application-button"
+            disabled
+        >
+            Go to<br>Application
+        </button>
+
+
+        <button
+            id="results-button"
+            class="application-button"
+            disabled
+        >
+            View<br>Results
+        </button>
+
+    </div>
 
 
     <script src="/static/js/client.js"></script>

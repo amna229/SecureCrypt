@@ -8,8 +8,8 @@ mod derived;
 mod loader;
 mod summaries;
 
+use crate::dashboard::database::storage::DashboardStorage;
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
 use uuid::Uuid;
 
 /// Represents a summarized evaluation.
@@ -107,13 +107,13 @@ pub(crate) struct GroupKey {
 
 /// Provides database access to evaluation results.
 pub struct ResultsRepository {
-    pub(crate) pool: PgPool,
+    pub(crate) storage: DashboardStorage,
 }
 
 impl ResultsRepository {
-    /// Creates a new results repository using the provided database pool.
-    pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+    /// Creates a new results repository using the provided database storage.
+    pub fn new(storage: DashboardStorage) -> Self {
+        Self { storage }
     }
 }
 

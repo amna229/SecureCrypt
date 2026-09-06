@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 
-<html lang="es">
+<html lang="en">
 
 <head>
 
@@ -32,7 +32,7 @@
         href="/static/css/common.css"
     >
 
-    <title>Configuración del servidor</title>
+    <title>Server Configuration</title>
 
 </head>
 
@@ -48,26 +48,27 @@
                 class="tab active"
                 onclick="window.location.href='/server?transfer_id=' + encodeURIComponent(new URLSearchParams(window.location.search).get('transfer_id'))"
             >
-                Servidor
+                Server
             </button>
+
 
             <button
                 class="tab"
                 onclick="window.location.href='/client?transfer_id=' + encodeURIComponent(new URLSearchParams(window.location.search).get('transfer_id'))"
             >
-                Cliente
+                Client
             </button>
 
         </div>
 
 
         <h1>
-            Configuración del servidor
+            Server Configuration
         </h1>
 
 
         <h3>
-            Por favor selecciona el modo de intercambio de clave:
+            Please select the key exchange mode:
         </h3>
 
 
@@ -82,7 +83,7 @@
                     checked
                 >
 
-                Clásico
+                Classical
 
             </label>
 
@@ -95,7 +96,7 @@
                     value="post_quantum"
                 >
 
-                Post-Cuántico
+                Post-Quantum
 
             </label>
 
@@ -157,7 +158,7 @@
             id="cipher-error"
             class="error-message"
         >
-            Debes seleccionar al menos una Cipher Suite.
+            You must select at least one cipher suite.
         </div>
 
 
@@ -254,7 +255,7 @@
             id="kx-error"
             class="error-message"
         >
-            Debes seleccionar al menos un KX Group.
+            You must select at least one KX group.
         </div>
 
 
@@ -263,7 +264,7 @@
             class="save-button"
             type="button"
         >
-            Guardar
+            Save
         </button>
 
 

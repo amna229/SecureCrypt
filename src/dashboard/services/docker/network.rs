@@ -1,3 +1,5 @@
+//! Docker network management.
+
 use crate::dashboard::services::manager::Manager;
 
 use bollard::models::{
@@ -7,12 +9,17 @@ use bollard::models::{
 impl Manager {
     /// Creates the isolated Docker network used by an evaluation.
     pub(crate) async fn create_evaluation_network(&self) -> Result<(), String> {
+        let docker = self
+            .docker
+            .as_ref()
+            .ok_or_else(|| "Docker is not available".to_string())?;
+
         let network_config = NetworkCreateRequest {
             name: "securecrypt-evaluation-network".to_string(),
             ..Default::default()
         };
 
-        self.docker
+        docker
             .create_network(network_config)
             .await
             .map_err(|e| e.to_string())?;
@@ -23,14 +30,16 @@ impl Manager {
     }
 
     /// Connects a container to the evaluation network.
-    ///
-    /// The provided aliases allow containers to resolve each
-    /// other through Docker's internal DNS.
     pub(crate) async fn connect_container_to_evaluation_network(
         &self,
         container_name: &str,
         aliases: &[&str],
     ) -> Result<(), String> {
+        let docker = self
+            .docker
+            .as_ref()
+            .ok_or_else(|| "Docker is not available".to_string())?;
+
         let connect_request = NetworkConnectRequest {
             container: container_name.to_string(),
 
@@ -40,7 +49,7 @@ impl Manager {
             }),
         };
 
-        self.docker
+        docker
             .connect_network("securecrypt-evaluation-network", connect_request)
             .await
             .map_err(|e| e.to_string())?;
@@ -48,9 +57,14 @@ impl Manager {
         Ok(())
     }
 
-    /// Connects the main application container to the
-    /// evaluation network.
+    /// Connects the main application container to
+    /// the evaluation network.
     pub(crate) async fn connect_application_to_evaluation_network(&self) -> Result<(), String> {
+        let docker = self
+            .docker
+            .as_ref()
+            .ok_or_else(|| "Docker is not available".to_string())?;
+
         let connect_request = NetworkConnectRequest {
             container: "securecrypt-application".to_string(),
 
@@ -60,7 +74,7 @@ impl Manager {
             }),
         };
 
-        self.docker
+        docker
             .connect_network("securecrypt-evaluation-network", connect_request)
             .await
             .map_err(|e| e.to_string())?;
@@ -73,21 +87,27 @@ impl Manager {
     /// Disconnects the application container from
     /// the evaluation network.
     pub(crate) async fn disconnect_application_from_evaluation_network(&self) {
+        let Some(docker) = self.docker.as_ref() else {
+            return;
+        };
+
         let disconnect_request = NetworkDisconnectRequest {
             container: "securecrypt-application".to_string(),
             force: Some(true),
         };
 
-        let _ = self
-            .docker
+        let _ = docker
             .disconnect_network("securecrypt-evaluation-network", disconnect_request)
             .await;
     }
 
     /// Removes the Docker network used by the evaluation.
     pub(crate) async fn remove_evaluation_network(&self) {
-        let _ = self
-            .docker
+        let Some(docker) = self.docker.as_ref() else {
+            return;
+        };
+
+        let _ = docker
             .remove_network("securecrypt-evaluation-network")
             .await;
     }

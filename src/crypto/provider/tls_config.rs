@@ -8,9 +8,20 @@ use std::fs::File;
 use std::io::BufReader;
 use std::sync::Arc;
 
-const ROOT_CA_PATH: &str = "simplified-pki/rootCA/rootCA.crt";
-const SERVER_CERTIFICATE_PATH: &str = "simplified-pki/rootCA/server.crt";
-const SERVER_PRIVATE_KEY_PATH: &str = "simplified-pki/rootCA/private/server.key";
+const ROOT_CA_PATH: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/simplified-pki/rootCA/rootCA.crt"
+);
+
+const SERVER_CERTIFICATE_PATH: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/simplified-pki/rootCA/server.crt"
+);
+
+const SERVER_PRIVATE_KEY_PATH: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/simplified-pki/rootCA/private/server.key"
+);
 
 /// Filters the crypto provider according to the selected cipher suites and key exchange groups.
 pub fn build_crypto_provider(
@@ -60,6 +71,7 @@ pub fn build_server_config(
     crypto_provider: CryptoProvider,
 ) -> Result<ServerConfig, Box<dyn std::error::Error + Send + Sync>> {
     let cert_chain = load_server_certificate()?;
+
     let private_key = load_server_private_key()?;
 
     let server_config = ServerConfig::builder_with_provider(Arc::new(crypto_provider))
@@ -73,6 +85,7 @@ pub fn build_server_config(
 /// Loads the root CA certificates used to authenticate the server.
 fn load_root_cert_store() -> Result<RootCertStore, Box<dyn std::error::Error + Send + Sync>> {
     let ca_file = File::open(ROOT_CA_PATH)?;
+
     let mut ca_reader = BufReader::new(ca_file);
 
     let ca_certificates: Vec<CertificateDer<'static>> =
@@ -91,6 +104,7 @@ fn load_root_cert_store() -> Result<RootCertStore, Box<dyn std::error::Error + S
 fn load_server_certificate()
 -> Result<Vec<CertificateDer<'static>>, Box<dyn std::error::Error + Send + Sync>> {
     let cert_file = File::open(SERVER_CERTIFICATE_PATH)?;
+
     let mut cert_reader = BufReader::new(cert_file);
 
     let cert_chain = rustls_pemfile::certs(&mut cert_reader).collect::<Result<Vec<_>, _>>()?;
@@ -102,6 +116,7 @@ fn load_server_certificate()
 fn load_server_private_key()
 -> Result<rustls::pki_types::PrivateKeyDer<'static>, Box<dyn std::error::Error + Send + Sync>> {
     let key_file = File::open(SERVER_PRIVATE_KEY_PATH)?;
+
     let mut key_reader = BufReader::new(key_file);
 
     let private_key =

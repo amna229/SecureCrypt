@@ -27,15 +27,3 @@ chrono = { version = "0.4.45", features = ["clock", "serde"] }
 futures-util = "0.3.34"
 headless_chrome = "1.0.22"
 urlencoding = "2.1.3"
-
-[[bin]]
-name = "dashboard"
-path = "src/main.rs"
-
-[[bin]]
-name = "server"
-path = "src/server/server_main.rs"
-
-[[bin]]
-name = "client"
-path = "src/client/client_main.rs"

@@ -1,7 +1,10 @@
-//! Evaluation handlers.
+//! Evaluation HTTP handlers.
 //!
-//! This module contains the HTTP handlers responsible for starting,
-//! stopping, resetting, and querying the current evaluation.
+//! This module exposes the HTTP operations used by the dashboard
+//! to start, stop, reset and inspect an evaluation.
+//!
+//! The executable of the external application is obtained from
+//! the shared dashboard state.
 
 use axum::{Json, extract::State, http::StatusCode};
 
@@ -16,24 +19,31 @@ pub struct CurrentEvaluationResponse {
     pub evaluation_id: Option<Uuid>,
 }
 
-/// Starts the evaluation environment.
-pub async fn start_evaluation(State(state): State<Arc<DashboardState>>) {
-    println!("Starting evaluation environment...");
+/// Starts the evaluation using the external application executable
+/// stored in the dashboard state.
+pub async fn start_evaluation(
+    State(state): State<Arc<DashboardState>>,
+) -> Result<StatusCode, String> {
+    let application_program = state
+        .application_program()
+        .await
+        .ok_or_else(|| "External application executable is not configured".to_string())?;
+
+    println!(
+        "Starting evaluation environment using '{}'",
+        application_program
+    );
 
     let manager = Manager::new(state);
 
-    match manager.start().await {
-        Ok(()) => {
-            println!("Evaluation environment started successfully");
-        }
+    manager.start(&application_program).await?;
 
-        Err(error) => {
-            eprintln!("Cannot start evaluation environment: {}", error);
-        }
-    }
+    println!("Evaluation environment started successfully");
+
+    Ok(StatusCode::OK)
 }
 
-/// Stops the evaluation environment.
+/// Stops the current evaluation environment.
 pub async fn stop_application(State(state): State<Arc<DashboardState>>) -> Result<(), String> {
     let manager = Manager::new(state);
 

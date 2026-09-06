@@ -3,24 +3,18 @@
 //! This module manages the asynchronous collection of CPU and memory
 //! statistics from the containers involved in an evaluation.
 
+use crate::dashboard::database::storage::DashboardStorage;
 use crate::dashboard::metrics::resource_repository::ResourceRepository;
 
 use super::accumulator::{MonitoredContainer, ResourceAccumulator};
-
 use super::cpu::calculate_cpu_percent;
 
 use bollard::{Docker, query_parameters::StatsOptionsBuilder};
-
 use chrono::Utc;
-
 use futures_util::StreamExt;
-
 use std::collections::HashMap;
-
 use tokio::task::JoinHandle;
-
 use tokio_util::sync::CancellationToken;
-
 use uuid::Uuid;
 
 /// Handles resource monitoring for the containers involved in
@@ -45,7 +39,7 @@ impl ResourceMonitor {
     /// stops collecting samples and persists the accumulated metrics.
     pub fn start(
         docker: Docker,
-        db: sqlx::PgPool,
+        db: DashboardStorage,
         evaluation_id: Uuid,
         containers: Vec<MonitoredContainer>,
         parent_token: CancellationToken,

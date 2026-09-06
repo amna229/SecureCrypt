@@ -1,0 +1,788 @@
+use rustls::{ClientConfig, ServerConfig};
+
+/// Abstraction over the cryptographic mechanisms used by the application.
+///
+/// Implementations provide the cryptographic configuration required to
+/// establish TLS connections in either classical or post-quantum mode.
+pub trait AlgorithmProvider: Send {
+    /// Returns the identifier of the cryptographic mode.
+    fn name(&self) -> &'static str;
+
+    /// Builds a Rustls cryptographic provider using the selected
+    /// cipher suites and key exchange groups.
+    fn build_crypto_provider(
+        &self,
+        selected_cipher_suites: &[String],
+        selected_kx_groups: &[String],
+    ) -> rustls::crypto::CryptoProvider;
+
+    /// Builds the TLS client configuration for the selected
+    /// cryptographic mechanisms.
+    fn build_client_config(
+        &self,
+        selected_cipher_suites: &[String],
+        selected_kx_groups: &[String],
+    ) -> Result<ClientConfig, Box<dyn std::error::Error + Send + Sync>>;
+
+    /// Builds the TLS server configuration for the selected
+    /// cryptographic mechanisms.
+    fn build_server_config(
+        &self,
+        selected_cipher_suites: &[String],
+        selected_kx_groups: &[String],
+    ) -> Result<ServerConfig, Box<dyn std::error::Error + Send + Sync>>;
+}
+use crate::crypto::algorithm_provider::AlgorithmProvider;
+use crate::crypto::crypto_mode::CryptoMode;
+use crate::crypto::provider::classical_provider::ClassicalProvider;
+use crate::crypto::provider::post_quantum_provider::PostQuantumProvider;
+
+/// Selects the cryptographic provider corresponding to the requested mode.
+///
+/// The selector hides the concrete provider implementations from the
+/// rest of the application and returns them through the `AlgorithmProvider`
+/// abstraction.
+pub fn get_crypto_provider(mode: &CryptoMode) -> Result<Box<dyn AlgorithmProvider>, String> {
+    match mode.0.as_str() {
+        "classical" => Ok(Box::new(ClassicalProvider::new())),
+        "post_quantum" => Ok(Box::new(PostQuantumProvider::new())),
+        other => Err(format!("Unknown crypto provider: {}", other)),
+    }
+}
+//! SecureCrypt client.
+//!
+//! This module provides the client-side interface for applications using
+//! SecureCrypt. It is responsible for obtaining the evaluation configuration,
+//! establishing the TLS connection and exposing the resulting stream to the
+//! application-level protocol.
+
+use crate::crypto::tls::connect_tls;
+use crate::crypto::{CryptoConfig, CryptoMode};
+use crate::user_application::{BoxedApplicationStream, MetricsStream};
+
+use reqwest::Client;
+use serde_json::json;
+use std::env;
+use std::error::Error;
+use std::future::Future;
+use uuid::Uuid;
+
+type BoxError = Box<dyn Error + Send + Sync>;
+
+/// Starts an application over a SecureCrypt TLS client connection.
+///
+/// SecureCrypt waits for the evaluation configuration provided by the
+/// Dashboard, configures the selected cryptographic mechanisms, establishes
+/// the TLS connection and exposes a metrics-enabled stream to the application.
+///
+/// The application is responsible only for implementing its application-level
+/// protocol. It does not need to know the concrete TLS implementation or
+/// the evaluation metrics.
+pub async fn start_application<F, Fut>(application: F) -> Result<(), BoxError>
+where
+    F: FnOnce(BoxedApplicationStream) -> Fut,
+    Fut: Future<Output = Result<(), BoxError>>,
+{
+    let control_addr =
+        env::var("SECURECRYPT_CONTROL_ADDR").unwrap_or_else(|_| "0.0.0.0:9090".to_string());
+
+    let config = crate::control::wait_for_configuration(&control_addr).await?;
+
+    let evaluation_id = config.evaluation_id.clone();
+
+    let server_addr = config
+        .server_addr
+        .ok_or("Server address not provided in evaluation configuration")?;
+
+    let server_name = config
+        .server_name
+        .unwrap_or_else(|| "localhost".to_string());
+
+    let crypto_config = CryptoConfig::new(
+        CryptoMode::new(config.crypto_mode),
+        config.cipher_suites,
+        config.kx_groups,
+    );
+
+    let (tls_stream, handshake_duration_ms, kx_group, cipher_suite) =
+        connect_tls(&crypto_config, &server_addr, &server_name)
+            .await
+            .map_err(|(error, _)| error)?;
+
+    println!("TLS connection established with {}", server_addr);
+
+    println!(
+        "TLS handshake: {} ms | KX: {:?} | Cipher suite: {:?}",
+        handshake_duration_ms, kx_group, cipher_suite
+    );
+
+    let dashboard_url =
+        env::var("DASHBOARD_URL").unwrap_or_else(|_| "http://127.0.0.1:3000".to_string());
+
+    let evaluation_uuid = Uuid::parse_str(&evaluation_id)?;
+
+    let client_id = env::var("CLIENT_ID")
+        .ok()
+        .and_then(|value| value.parse::<i32>().ok())
+        .unwrap_or(0);
+
+    let http_client = Client::new();
+
+    let handshake_event = json!({
+        "handshake_id": Uuid::new_v4(),
+
+        "evaluation_id": evaluation_uuid,
+
+        "client_id": client_id,
+
+        "handshake_duration_ms": handshake_duration_ms,
+
+        "kx_group": kx_group,
+
+        "cipher_suite": cipher_suite,
+
+        "success": true
+    });
+
+    if let Err(error) = http_client
+        .post(format!("{}/eval/handshake-event", dashboard_url))
+        .json(&handshake_event)
+        .send()
+        .await
+    {
+        eprintln!("Error sending handshake metric: {}", error);
+    }
+
+    let (metrics_stream, metrics_handle) = MetricsStream::new(Box::pin(tls_stream));
+
+    let application_result = application(Box::pin(metrics_stream)).await;
+
+    let bytes_transferred = metrics_handle.bytes_transferred();
+
+    /*
+     * The transfer metric must be sent before notifying
+     * the Dashboard that this client has finished.
+     *
+     * Otherwise the last client may trigger evaluation
+     * cleanup before its transfer metric is stored.
+     */
+    if bytes_transferred > 0 {
+        let duration_ms = metrics_handle.duration_ms();
+
+        let throughput_mbps = metrics_handle.throughput_mbps();
+
+        let transfer_event = json!({
+            "event_type": "transfer-completed",
+
+            "execution_id": Uuid::new_v4().to_string(),
+
+            "transfer_id": Uuid::new_v4(),
+
+            "evaluation_id": evaluation_uuid,
+
+            "client_id": client_id,
+
+            "operation": "application",
+
+            "file_size": bytes_transferred,
+
+            "file_size_unit": "B",
+
+            "num_files": 1,
+
+            "bytes_transferred": bytes_transferred,
+
+            "duration_ms": duration_ms,
+
+            "throughput_mbps": throughput_mbps,
+
+            "crypto_mode": crypto_config.crypto_mode.to_string(),
+
+            "kx_group": kx_group,
+
+            "cipher_suite": cipher_suite,
+
+            "success": application_result.is_ok(),
+
+            "error_type":
+                if application_result.is_err() {
+                    Some("application_error")
+                } else {
+                    None::<&str>
+                }
+        });
+
+        if let Err(error) = http_client
+            .post(format!("{}/eval/transfer-event", dashboard_url))
+            .json(&transfer_event)
+            .send()
+            .await
+        {
+            eprintln!("Error sending transfer metric: {}", error);
+        }
+    }
+
+    /*
+     * Notify the Dashboard only after all metrics from
+     * this client have been submitted.
+     */
+    let client_finished_event = json!({
+        "evaluation_id": evaluation_uuid,
+
+        "client_id": client_id
+    });
+
+    if let Err(error) = http_client
+        .post(format!("{}/eval/client-finished", dashboard_url))
+        .json(&client_finished_event)
+        .send()
+        .await
+    {
+        eprintln!("Error sending client completion event: {}", error);
+    }
+
+    application_result
+}
+//! SecureCrypt server.
+//!
+//! This module provides the server-side interface for applications using
+//! SecureCrypt. It is responsible for obtaining the evaluation configuration,
+//! creating the TLS acceptor, accepting incoming TCP connections and
+//! establishing TLS before exposing the resulting stream to the application
+//! protocol.
+
+use crate::control::wait_for_configuration;
+use crate::crypto::tls::{accept_tls_connection, create_tls_acceptor};
+use crate::crypto::{CryptoConfig, CryptoMode};
+use crate::user_application::BoxedApplicationStream;
+
+use std::env;
+use std::future::Future;
+use std::sync::Arc;
+use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::oneshot;
+use tokio_rustls::TlsAcceptor;
+use tokio_util::sync::CancellationToken;
+
+pub mod http;
+pub mod routes;
+
+/// Starts the SecureCrypt server.
+///
+/// SecureCrypt handles the cryptographic configuration, TCP listener,
+/// TLS acceptor and TLS handshakes. Once a TLS connection is established,
+/// the resulting stream is exposed to the application through the
+/// `BoxedApplicationStream` abstraction.
+pub async fn run_server<F, Fut>(
+    crypto_config: CryptoConfig,
+    addr: &str,
+    cancellation_token: CancellationToken,
+    ready_sender: oneshot::Sender<()>,
+    connection_handler: Arc<F>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
+where
+    F: Fn(BoxedApplicationStream) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send + 'static,
+{
+    let tls_acceptor = create_tls_acceptor(&crypto_config)?;
+
+    let listener = TcpListener::bind(addr).await?;
+
+    println!("SecureCrypt server up on {}", addr);
+
+    let _ = ready_sender.send(());
+
+    loop {
+        tokio::select! {
+            _ = cancellation_token.cancelled() => {
+                println!("Server shutting down..");
+                break Ok(());
+            }
+
+            result = listener.accept() => {
+                let (stream, client_addr) = result?;
+
+                let acceptor = tls_acceptor.clone();
+                let connection_handler = Arc::clone(&connection_handler);
+
+                tokio::spawn(async move {
+                    if let Err(error) = handle_connection(
+                        stream,
+                        client_addr,
+                        acceptor,
+                        connection_handler,
+                    )
+                    .await
+                    {
+                        eprintln!(
+                            "Error handling connection from {}: {}",
+                            client_addr,
+                            error
+                        );
+                    }
+                });
+            }
+        }
+    }
+}
+
+/// Establishes TLS for an incoming connection and passes the resulting
+/// stream to the application.
+async fn handle_connection<F, Fut>(
+    stream: TcpStream,
+    client_addr: std::net::SocketAddr,
+    acceptor: TlsAcceptor,
+    connection_handler: Arc<F>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
+where
+    F: Fn(BoxedApplicationStream) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send + 'static,
+{
+    let tls_stream = accept_tls_connection(&acceptor, stream).await?;
+
+    println!("Server: TLS connection established with {}", client_addr);
+
+    connection_handler(Box::pin(tls_stream)).await?;
+
+    Ok(())
+}
+
+/// Starts an application over a SecureCrypt TLS server connection.
+///
+/// SecureCrypt waits for the evaluation configuration provided by the
+/// Dashboard, configures the TLS layer and starts listening on the
+/// configured address.
+///
+/// Each established TLS connection is exposed to the application through
+/// the `BoxedApplicationStream` abstraction. The application is responsible
+/// only for its application-level protocol.
+pub async fn start_application<F, Fut>(
+    application: Arc<F>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
+where
+    F: Fn(BoxedApplicationStream) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send + 'static,
+{
+    let control_addr =
+        env::var("SECURECRYPT_CONTROL_ADDR").unwrap_or_else(|_| "0.0.0.0:9090".to_string());
+
+    let config = crate::control::wait_for_configuration(&control_addr).await?;
+
+    let listen_addr = config
+        .listen_addr
+        .unwrap_or_else(|| "0.0.0.0:8443".to_string());
+
+    let crypto_config = CryptoConfig::new(
+        CryptoMode::new(config.crypto_mode),
+        config.cipher_suites,
+        config.kx_groups,
+    );
+
+    let cancellation_token = CancellationToken::new();
+
+    let (ready_sender, _ready_receiver) = oneshot::channel();
+
+    run_server(
+        crypto_config,
+        &listen_addr,
+        cancellation_token,
+        ready_sender,
+        application,
+    )
+    .await
+}
+use crate::user_application::BoxedApplicationStream;
+
+use hyper::server::conn::http1;
+use hyper_util::rt::TokioIo;
+use hyper_util::service::TowerToHyperService;
+
+/// Serves an established application stream using HTTP/1.1.
+///
+/// TLS is established by SecureCrypt before this function is called.
+/// HTTP/1.1 only operates on the application stream and is therefore
+/// independent from the concrete TLS implementation.
+pub async fn serve_connection(
+    application_stream: BoxedApplicationStream,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let io = TokioIo::new(application_stream);
+
+    let router = super::routes::create_router();
+    let service = TowerToHyperService::new(router);
+
+    http1::Builder::new().serve_connection(io, service).await?;
+
+    Ok(())
+}
+use axum::{
+    Router,
+    body::Body,
+    extract::{DefaultBodyLimit, Query},
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    routing::{get, post},
+};
+use bytes::Bytes;
+use futures_util::stream;
+use http_body_util::BodyExt;
+use serde::Deserialize;
+
+/// Query parameters accepted by the download endpoint.
+#[derive(Debug, Deserialize)]
+struct DownloadQuery {
+    /// Number of bytes to generate and return to the client.
+    size: u64,
+}
+
+/// Creates the HTTP router for the application.
+///
+/// The router exposes endpoints for uploading and downloading data.
+/// A maximum request body size of 10 GiB is configured to support
+/// large file transfers while still providing an explicit upper limit.
+pub fn create_router() -> Router {
+    Router::new()
+        .route("/upload", post(upload))
+        .route("/download", get(download))
+        .layer(DefaultBodyLimit::max(10 * 1024 * 1024 * 1024))
+}
+
+/// Receives an uploaded data stream from the client.
+///
+/// The request body is processed incrementally rather than being loaded
+/// completely into memory. The total number of bytes received is counted
+/// and logged once the transfer has completed.
+async fn upload(mut body: Body) -> impl IntoResponse {
+    let mut total_bytes: u64 = 0;
+
+    while let Some(frame_result) = body.frame().await {
+        match frame_result {
+            Ok(frame) => {
+                if let Ok(data) = frame.into_data() {
+                    total_bytes += data.len() as u64;
+                }
+            }
+
+            Err(error) => {
+                eprintln!("Error receiving upload body: {}", error);
+
+                return StatusCode::INTERNAL_SERVER_ERROR;
+            }
+        }
+    }
+
+    println!("Server: received {} bytes", total_bytes);
+
+    StatusCode::OK
+}
+
+/// Generates a data stream of the requested size for the client.
+///
+/// Data is generated in 1 MiB chunks to avoid allocating the complete
+/// response body in memory at once. The generated content is intentionally
+/// synthetic because the endpoint is used to measure transfer performance.
+async fn download(Query(query): Query<DownloadQuery>) -> Response {
+    const CHUNK_SIZE: u64 = 1024 * 1024;
+
+    let total_size = query.size;
+
+    let chunks = (total_size + CHUNK_SIZE - 1) / CHUNK_SIZE;
+
+    let body_stream = stream::iter((0..chunks).map(move |chunk_id| {
+        let offset = chunk_id * CHUNK_SIZE;
+        let remaining = total_size - offset;
+        let chunk_size = remaining.min(CHUNK_SIZE);
+
+        Ok::<Bytes, std::convert::Infallible>(Bytes::from(vec![0u8; chunk_size as usize]))
+    }));
+
+    let body = Body::from_stream(body_stream);
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "application/octet-stream")
+        .body(body)
+        .unwrap()
+}
+//! Application integration interface.
+//!
+//! This module defines the stream abstraction exposed to applications
+//! integrating SecureCrypt. The application can use this stream to
+//! implement its own application-level protocol without depending on
+//! the concrete TLS implementation.
+
+use std::pin::Pin;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
+use std::task::{Context, Poll};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+
+/// Asynchronous bidirectional stream exposed to the application.
+///
+/// The application uses this stream to implement its own application-level
+/// protocol, such as HTTP/1.1, WebSocket or gRPC.
+pub trait ApplicationStream: AsyncRead + AsyncWrite + Unpin + Send {}
+
+impl<T> ApplicationStream for T where T: AsyncRead + AsyncWrite + Unpin + Send {}
+
+/// Boxed stream exposed to the application.
+pub type BoxedApplicationStream = Pin<Box<dyn ApplicationStream>>;
+
+/// Shared transfer metrics collected by a `MetricsStream`.
+#[derive(Debug)]
+struct TransferMetricsState {
+    bytes_read: AtomicU64,
+    bytes_written: AtomicU64,
+    first_activity_nanos: AtomicU64,
+}
+
+/// Handle used to retrieve the metrics collected by a `MetricsStream`.
+#[derive(Clone, Debug)]
+pub struct TransferMetricsHandle {
+    state: Arc<TransferMetricsState>,
+}
+
+/// Generic stream wrapper that measures application-level traffic.
+///
+/// The wrapper is independent of the protocol used by the application.
+/// It counts bytes read and written through the SecureCrypt-protected
+/// stream and records the time between the first application activity
+/// and the end of the application operation.
+pub struct MetricsStream {
+    inner: BoxedApplicationStream,
+    state: Arc<TransferMetricsState>,
+}
+
+impl MetricsStream {
+    /// Creates a metrics-enabled stream and its corresponding metrics handle.
+    pub fn new(inner: BoxedApplicationStream) -> (Self, TransferMetricsHandle) {
+        let state = Arc::new(TransferMetricsState {
+            bytes_read: AtomicU64::new(0),
+
+            bytes_written: AtomicU64::new(0),
+
+            first_activity_nanos: AtomicU64::new(0),
+        });
+
+        let handle = TransferMetricsHandle {
+            state: Arc::clone(&state),
+        };
+
+        let stream = Self { inner, state };
+
+        (stream, handle)
+    }
+
+    /// Records the first application-level activity.
+    fn record_first_activity(&self) {
+        let now = current_time_nanos();
+
+        let _ = self.state.first_activity_nanos.compare_exchange(
+            0,
+            now,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        );
+    }
+}
+
+impl TransferMetricsHandle {
+    /// Returns the total number of bytes received and sent.
+    pub fn bytes_received(&self) -> u64 {
+        self.state.bytes_read.load(Ordering::Relaxed)
+    }
+
+    /// Returns the total number of bytes sent.
+    pub fn bytes_sent(&self) -> u64 {
+        self.state.bytes_written.load(Ordering::Relaxed)
+    }
+
+    /// Returns the total number of application bytes transferred.
+    pub fn bytes_transferred(&self) -> u64 {
+        self.bytes_received() + self.bytes_sent()
+    }
+
+    /// Returns the elapsed transfer duration in milliseconds.
+    pub fn duration_ms(&self) -> i64 {
+        let started = self.state.first_activity_nanos.load(Ordering::Relaxed);
+
+        if started == 0 {
+            return 0;
+        }
+
+        let now = current_time_nanos();
+
+        now.saturating_sub(started).saturating_div(1_000_000) as i64
+    }
+
+    /// Calculates the aggregate throughput in megabits per second.
+    pub fn throughput_mbps(&self) -> f64 {
+        let bytes = self.bytes_transferred();
+
+        let duration_ms = self.duration_ms();
+
+        if bytes == 0 || duration_ms <= 0 {
+            return 0.0;
+        }
+
+        (bytes as f64 * 8.0) / (duration_ms as f64 * 1000.0)
+    }
+}
+
+impl AsyncRead for MetricsStream {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        let before = buf.filled().len();
+
+        let result = self.inner.as_mut().poll_read(cx, buf);
+
+        if let Poll::Ready(Ok(())) = &result {
+            let after = buf.filled().len();
+
+            let bytes = after.saturating_sub(before);
+
+            if bytes > 0 {
+                self.record_first_activity();
+
+                self.state
+                    .bytes_read
+                    .fetch_add(bytes as u64, Ordering::Relaxed);
+            }
+        }
+
+        result
+    }
+}
+
+impl AsyncWrite for MetricsStream {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        let result = self.inner.as_mut().poll_write(cx, buf);
+
+        if let Poll::Ready(Ok(bytes)) = &result {
+            if *bytes > 0 {
+                self.record_first_activity();
+
+                self.state
+                    .bytes_written
+                    .fetch_add(*bytes as u64, Ordering::Relaxed);
+            }
+        }
+
+        result
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        self.inner.as_mut().poll_flush(cx)
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        self.inner.as_mut().poll_shutdown(cx)
+    }
+
+    fn poll_write_vectored(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &[std::io::IoSlice<'_>],
+    ) -> Poll<std::io::Result<usize>> {
+        self.inner.as_mut().poll_write_vectored(cx, bufs)
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        self.inner.is_write_vectored()
+    }
+}
+
+/// Returns the current system time in nanoseconds since the Unix epoch.
+fn current_time_nanos() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos() as u64)
+        .unwrap_or(0)
+}
+//! Evaluation control endpoint.
+//!
+//! This module provides the HTTP endpoint used to receive the
+//! configuration of an evaluation from the SecureCrypt dashboard.
+
+use axum::{Json, Router, extract::State, routing::post};
+
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tokio::net::TcpListener;
+use tokio::sync::oneshot;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EvaluationConfig {
+    pub evaluation_id: String,
+    pub crypto_mode: String,
+    pub cipher_suites: Vec<String>,
+    pub kx_groups: Vec<String>,
+    pub server_addr: Option<String>,
+    pub server_name: Option<String>,
+    pub listen_addr: Option<String>,
+}
+
+struct ControlState {
+    sender: std::sync::Mutex<Option<oneshot::Sender<EvaluationConfig>>>,
+}
+
+async fn configure(
+    State(state): State<Arc<ControlState>>,
+    Json(config): Json<EvaluationConfig>,
+) -> &'static str {
+    if let Some(sender) = state.sender.lock().unwrap().take() {
+        let _ = sender.send(config);
+        "Configuration received"
+    } else {
+        "Configuration already received"
+    }
+}
+
+pub async fn wait_for_configuration(
+    addr: &str,
+) -> Result<EvaluationConfig, Box<dyn std::error::Error + Send + Sync>> {
+    let (sender, receiver) = oneshot::channel();
+
+    let state = Arc::new(ControlState {
+        sender: std::sync::Mutex::new(Some(sender)),
+    });
+
+    let app = Router::new()
+        .route("/configure", post(configure))
+        .with_state(state);
+
+    let listener = TcpListener::bind(addr).await?;
+
+    println!("SecureCrypt control endpoint listening on {}", addr);
+
+    tokio::spawn(async move {
+        if let Err(error) = axum::serve(listener, app).await {
+            eprintln!("Control endpoint error: {}", error);
+        }
+    });
+
+    Ok(receiver.await?)
+}
+
+/// Starts the control endpoint using the address
+/// supplied through `SECURECRYPT_CONTROL_ADDR`.
+///
+/// When the variable is not defined, port 9090 is used
+/// for backwards compatibility.
+pub async fn wait_for_configuration_from_environment()
+-> Result<EvaluationConfig, Box<dyn std::error::Error + Send + Sync>> {
+    let addr =
+        std::env::var("SECURECRYPT_CONTROL_ADDR").unwrap_or_else(|_| "0.0.0.0:9090".to_string());
+
+    wait_for_configuration(&addr).await
+}

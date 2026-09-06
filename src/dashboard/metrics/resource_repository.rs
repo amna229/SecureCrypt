@@ -1,29 +1,25 @@
 //! Resource metrics repository.
 //!
-//! This module provides database operations for storing CPU and
-//! memory usage metrics collected from evaluation containers.
+//! This module stores CPU and memory metrics using either PostgreSQL
+//! or temporary in-memory storage.
+
+use crate::dashboard::database::storage::{DashboardStorage, MemoryResource};
 
 use chrono::{DateTime, Utc};
-
-use sqlx::PgPool;
-
 use uuid::Uuid;
 
-/// Provides database operations for container resource metrics.
+/// Provides storage operations for resource metrics.
 pub struct ResourceRepository {
-    pool: PgPool,
+    storage: DashboardStorage,
 }
 
 impl ResourceRepository {
-    /// Creates a new resource repository using the provided database pool.
-    pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+    /// Creates a repository using the selected storage backend.
+    pub fn new(storage: DashboardStorage) -> Self {
+        Self { storage }
     }
 
-    /// Stores resource usage metrics for a container.
-    ///
-    /// The recorded values include average and peak CPU usage together
-    /// with peak memory consumption.
+    /// Stores CPU and memory measurements for an evaluation container.
     pub async fn save(
         &self,
         resource_id: Uuid,
@@ -35,30 +31,51 @@ impl ResourceRepository {
         cpu_peak_percent: f64,
         memory_peak_bytes: i64,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            "INSERT INTO resource (
-                resource_id,
-                evaluation_id,
-                role,
-                client_id,
-                timestamp,
-                cpu_avg_percent,
-                cpu_peak_percent,
-                memory_peak_bytes
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-        )
-        .bind(resource_id)
-        .bind(evaluation_id)
-        .bind(role)
-        .bind(client_id)
-        .bind(timestamp)
-        .bind(cpu_avg_percent)
-        .bind(cpu_peak_percent)
-        .bind(memory_peak_bytes)
-        .execute(&self.pool)
-        .await?;
+        match &self.storage {
+            DashboardStorage::Postgres(pool) => {
+                sqlx::query(
+                    "INSERT INTO resource (
+                        resource_id,
+                        evaluation_id,
+                        role,
+                        client_id,
+                        timestamp,
+                        cpu_avg_percent,
+                        cpu_peak_percent,
+                        memory_peak_bytes
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+                )
+                .bind(resource_id)
+                .bind(evaluation_id)
+                .bind(role)
+                .bind(client_id)
+                .bind(timestamp)
+                .bind(cpu_avg_percent)
+                .bind(cpu_peak_percent)
+                .bind(memory_peak_bytes)
+                .execute(pool)
+                .await?;
 
-        Ok(())
+                Ok(())
+            }
+
+            DashboardStorage::Memory(database) => {
+                let mut database = database.lock().await;
+
+                database.resources.push(MemoryResource {
+                    resource_id,
+                    evaluation_id,
+                    role: role.to_string(),
+                    client_id,
+                    timestamp,
+                    cpu_avg_percent,
+                    cpu_peak_percent,
+                    memory_peak_bytes,
+                });
+
+                Ok(())
+            }
+        }
     }
 }

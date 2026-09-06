@@ -189,7 +189,8 @@ input[type="checkbox"] {
 
     cursor: not-allowed;
 }
-.application-button {
+
+.application-actions {
     position: fixed;
 
     top: 50%;
@@ -197,9 +198,41 @@ input[type="checkbox"] {
 
     transform: translateY(-50%);
 
+    display: flex;
+    flex-direction: column;
+
+    gap: 16px;
+
+    width: 180px;
+
+    z-index: 1000;
+}
+
+.application-actions {
+    position: fixed;
+
+    top: 50%;
+    right: 40px;
+
+    transform: translateY(-50%);
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 16px;
+
+    align-items: stretch;
+}
+
+.application-button {
+    position: static;
+
     padding: 18px 28px;
 
-    font-family: 'Space Grotesk', sans-serif;
+    min-width: 180px;
+
+    font-family: "Space Grotesk", sans-serif;
+
     font-size: 18px;
     font-weight: 600;
 
@@ -209,20 +242,26 @@ input[type="checkbox"] {
     cursor: pointer;
 
     background-color: #2563eb;
+
     color: white;
 
-    transition: background-color 0.2s ease,
-                transform 0.2s ease;
+    transition:
+        background-color 0.2s ease,
+        transform 0.2s ease;
 }
 
 .application-button:not(:disabled):hover {
     background-color: #1d4ed8;
-    transform: translateY(-50%) scale(1.05);
+
+    transform: scale(1.05);
 }
 
 .application-button:disabled {
     background-color: #9ca3af;
+
     color: #e5e7eb;
+
     cursor: not-allowed;
+
     opacity: 0.7;
 }
