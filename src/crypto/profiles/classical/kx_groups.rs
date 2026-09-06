@@ -12,3 +12,22 @@ pub fn supported_kx_groups() -> Vec<&'static dyn SupportedKxGroup> {
         aws_lc_rs::kx_group::X25519,
     ]
 }
+
+
+
+
+
+//Unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn classical_kx_groups_are_available() {
+        let groups = supported_kx_groups();
+
+        assert_eq!(format!("{:?}", groups[0].name()), "secp256r1");
+        assert_eq!(format!("{:?}", groups[1].name()), "secp384r1");
+        assert_eq!(format!("{:?}", groups[2].name()), "X25519");
+    }
+}

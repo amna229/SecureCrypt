@@ -15,3 +15,47 @@ pub fn get_crypto_provider(mode: &CryptoMode) -> Result<Box<dyn AlgorithmProvide
         other => Err(format!("Unknown crypto provider: {}", other)),
     }
 }
+
+
+
+
+
+//Unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::crypto::crypto_mode::CryptoMode;
+
+    #[test]
+    fn selects_classical_provider() {
+        let mode = CryptoMode::new("classical".to_string());
+
+        let provider = get_crypto_provider(&mode)
+            .expect("Classic provider should be selected");
+
+        assert_eq!(provider.name(), "classical");
+    }
+
+    #[test]
+    fn selects_post_quantum_provider() {
+        let mode = CryptoMode::new("post_quantum".to_string());
+
+        let provider = get_crypto_provider(&mode)
+            .expect("Post-quantum provider should be selected");
+
+        assert_eq!(provider.name(), "post_quantum");
+    }
+
+    #[test]
+    fn rejects_unknown_provider() {
+        let mode = CryptoMode::new("invalid".to_string());
+
+        let result = get_crypto_provider(&mode);
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.err().unwrap(),
+            "Unknown crypto provider: invalid"
+        );
+    }
+}

@@ -61,3 +61,21 @@ impl AlgorithmProvider for ClassicalProvider {
         tls_config::build_server_config(crypto_provider)
     }
 }
+
+
+
+
+
+//Unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::crypto::algorithm_provider::AlgorithmProvider;
+
+    #[test]
+    fn creates_classical_provider() {
+        let provider = ClassicalProvider::new();
+
+        assert_eq!(provider.name(), "classical");
+    }
+}

@@ -61,3 +61,21 @@ impl AlgorithmProvider for PostQuantumProvider {
         tls_config::build_server_config(crypto_provider)
     }
 }
+
+
+
+
+
+//unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::crypto::algorithm_provider::AlgorithmProvider;
+
+    #[test]
+    fn creates_post_quantum_provider() {
+        let provider = PostQuantumProvider::new();
+
+        assert_eq!(provider.name(), "post_quantum");
+    }
+}

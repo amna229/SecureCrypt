@@ -84,3 +84,57 @@ impl ResourceAccumulator {
         self.memory_peak
     }
 }
+
+
+
+
+
+//Unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn creates_empty_accumulator() {
+        let accumulator = ResourceAccumulator::new("server".to_string(), None);
+
+        assert_eq!(accumulator.samples(), 0);
+        assert_eq!(accumulator.cpu_average(), 0.0);
+        assert_eq!(accumulator.cpu_peak(), 0.0);
+        assert_eq!(accumulator.memory_peak(), 0);
+    }
+
+    #[test]
+    fn accumulates_resource_samples() {
+        let mut accumulator = ResourceAccumulator::new("server".to_string(), None);
+
+        accumulator.add_sample(10.0, 1000);
+        accumulator.add_sample(20.0, 2000);
+        accumulator.add_sample(30.0, 1500);
+
+        assert_eq!(accumulator.samples(), 3);
+        assert_eq!(accumulator.cpu_average(), 20.0);
+        assert_eq!(accumulator.cpu_peak(), 30.0);
+        assert_eq!(accumulator.memory_peak(), 2000);
+    }
+
+    #[test]
+    fn tracks_peak_values_independently() {
+        let mut accumulator =
+            ResourceAccumulator::new("client".to_string(), Some(1));
+
+        accumulator.add_sample(50.0, 5000);
+        accumulator.add_sample(20.0, 8000);
+        accumulator.add_sample(40.0, 3000);
+
+        assert_eq!(accumulator.cpu_peak(), 50.0);
+        assert_eq!(accumulator.memory_peak(), 8000);
+    }
+
+    #[test]
+    fn average_cpu_is_zero_without_samples() {
+        let accumulator = ResourceAccumulator::new("server".to_string(), None);
+
+        assert_eq!(accumulator.cpu_average(), 0.0);
+    }
+}

@@ -15,3 +15,34 @@ impl std::fmt::Display for CryptoMode {
         write!(f, "{}", self.0)
     }
 }
+
+
+
+
+
+//Unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn creates_classical_mode() {
+        let mode = CryptoMode::new("classical".to_string());
+
+        assert_eq!(mode.0, "classical");
+    }
+
+    #[test]
+    fn creates_post_quantum_mode() {
+        let mode = CryptoMode::new("post_quantum".to_string());
+
+        assert_eq!(mode.0, "post_quantum");
+    }
+
+    #[test]
+    fn displays_mode_identifier() {
+        let mode = CryptoMode::new("classical".to_string());
+
+        assert_eq!(mode.to_string(), "classical");
+    }
+}

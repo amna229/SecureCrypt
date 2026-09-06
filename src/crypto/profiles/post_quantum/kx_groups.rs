@@ -12,3 +12,22 @@ pub fn supported_kx_groups() -> Vec<&'static dyn SupportedKxGroup> {
         aws_lc_rs::kx_group::MLKEM1024,
     ]
 }
+
+
+
+
+
+//Unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn post_quantum_kx_groups_are_available() {
+        let groups = supported_kx_groups();
+
+        assert_eq!(groups.len(), 2);
+        assert_eq!(format!("{:?}", groups[0].name()), "MLKEM768");
+        assert_eq!(format!("{:?}", groups[1].name()), "MLKEM1024");
+    }
+}

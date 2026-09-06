@@ -208,3 +208,42 @@ pub fn create_upload_body(total_size: u64) -> Result<BoxBody<Bytes, BoxError>, B
 fn boxed_infallible(error: Infallible) -> BoxError {
     match error {}
 }
+
+
+
+
+
+//Unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn creates_empty_http_body() {
+        let _body = create_empty_body();
+    }
+
+    #[test]
+    fn creates_upload_body_for_zero_bytes() {
+        let result = create_upload_body(0);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn creates_upload_body_for_small_file() {
+        let result = create_upload_body(1024);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn creates_upload_body_for_multiple_chunks() {
+        let chunk_size = 1024 * 1024;
+        let total_size = (chunk_size * 2) + 100;
+
+        let result = create_upload_body(total_size);
+
+        assert!(result.is_ok());
+    }
+}

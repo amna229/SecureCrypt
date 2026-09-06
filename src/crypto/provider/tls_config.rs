@@ -109,3 +109,132 @@ fn load_server_private_key()
 
     Ok(private_key)
 }
+
+
+
+
+
+//Unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rustls::crypto::aws_lc_rs;
+
+    #[test]
+    fn selects_requested_classical_cipher_suite() {
+        let crypto_provider = aws_lc_rs::default_provider();
+
+        let supported_cipher_suites = crate::crypto::profiles::cipher_suites::supported_cipher_suites();
+        let supported_kx_groups =
+            crate::crypto::profiles::classical::kx_groups::supported_kx_groups();
+
+        let selected_cipher_suites = vec!["TLS13_AES_128_GCM_SHA256".to_string()];
+        let selected_kx_groups = vec!["X25519".to_string()];
+
+        let provider = build_crypto_provider(
+            crypto_provider,
+            supported_cipher_suites,
+            supported_kx_groups,
+            &selected_cipher_suites,
+            &selected_kx_groups,
+        );
+
+        assert!(
+            provider
+                .cipher_suites
+                .iter()
+                .any(|suite| format!("{:?}", suite.suite()) == "TLS13_AES_128_GCM_SHA256")
+        );
+
+        assert!(
+            provider
+                .kx_groups
+                .iter()
+                .any(|group| format!("{:?}", group.name()) == "X25519")
+        );
+    }
+
+    #[test]
+    fn selects_requested_post_quantum_kx_group() {
+        let crypto_provider = aws_lc_rs::default_provider();
+
+        let supported_cipher_suites = crate::crypto::profiles::cipher_suites::supported_cipher_suites();
+        let supported_kx_groups =
+            crate::crypto::profiles::post_quantum::kx_groups::supported_kx_groups();
+
+        let selected_cipher_suites = vec!["TLS13_AES_128_GCM_SHA256".to_string()];
+        let selected_kx_groups = vec!["MLKEM768".to_string()];
+
+        let provider = build_crypto_provider(
+            crypto_provider,
+            supported_cipher_suites,
+            supported_kx_groups,
+            &selected_cipher_suites,
+            &selected_kx_groups,
+        );
+
+        assert!(
+            provider
+                .cipher_suites
+                .iter()
+                .any(|suite| format!("{:?}", suite.suite()) == "TLS13_AES_128_GCM_SHA256")
+        );
+
+        assert!(
+            provider
+                .kx_groups
+                .iter()
+                .any(|group| format!("{:?}", group.name()) == "MLKEM768")
+        );
+    }
+
+    #[test]
+    fn unsupported_cipher_suite_is_filtered_out() {
+        let crypto_provider = aws_lc_rs::default_provider();
+
+        let supported_cipher_suites = crate::crypto::profiles::cipher_suites::supported_cipher_suites();
+        let supported_kx_groups =
+            crate::crypto::profiles::classical::kx_groups::supported_kx_groups();
+
+        let selected_cipher_suites = vec!["INVALID_CIPHER_SUITE".to_string()];
+        let selected_kx_groups = vec!["X25519".to_string()];
+
+        let provider = build_crypto_provider(
+            crypto_provider,
+            supported_cipher_suites,
+            supported_kx_groups,
+            &selected_cipher_suites,
+            &selected_kx_groups,
+        );
+
+        assert!(
+            provider.cipher_suites.is_empty(),
+            "Unsupported cipher suites should be filtered out"
+        );
+    }
+
+    #[test]
+    fn unsupported_kx_group_is_filtered_out() {
+        let crypto_provider = aws_lc_rs::default_provider();
+
+        let supported_cipher_suites = crate::crypto::profiles::cipher_suites::supported_cipher_suites();
+        let supported_kx_groups =
+            crate::crypto::profiles::classical::kx_groups::supported_kx_groups();
+
+        let selected_cipher_suites = vec!["TLS13_AES_128_GCM_SHA256".to_string()];
+        let selected_kx_groups = vec!["INVALID_KX_GROUP".to_string()];
+
+        let provider = build_crypto_provider(
+            crypto_provider,
+            supported_cipher_suites,
+            supported_kx_groups,
+            &selected_cipher_suites,
+            &selected_kx_groups,
+        );
+
+        assert!(
+            provider.kx_groups.is_empty(),
+            "Unsupported key exchange groups should be filtered out"
+        );
+    }
+}

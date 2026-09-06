@@ -87,3 +87,99 @@ async fn download(Query(query): Query<DownloadQuery>) -> Response {
         .body(body)
         .unwrap()
 }
+
+
+
+
+
+//Unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::response::IntoResponse;
+    use bytes::Bytes;
+    use http_body_util::BodyExt;
+
+    #[tokio::test]
+    async fn upload_accepts_empty_body() {
+        let body = Body::empty();
+
+        let response = upload(body).await.into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn upload_accepts_data() {
+        let data = Bytes::from(vec![1u8; 1024]);
+        let body = Body::from(data);
+
+        let response = upload(body).await.into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn download_returns_requested_size() {
+        let query = DownloadQuery { size: 1024 };
+
+        let response = download(Query(query)).await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("The download response body should be readable")
+            .to_bytes();
+
+        assert_eq!(body.len(), 1024);
+    }
+
+    #[tokio::test]
+    async fn download_returns_zero_bytes_for_zero_size() {
+        let query = DownloadQuery { size: 0 };
+
+        let response = download(Query(query)).await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("The download response body should be readable")
+            .to_bytes();
+
+        assert!(body.is_empty());
+    }
+
+    #[tokio::test]
+    async fn download_handles_multiple_chunks() {
+        const CHUNK_SIZE: u64 = 1024 * 1024;
+        let requested_size = (CHUNK_SIZE * 2) + 100;
+
+        let query = DownloadQuery {
+            size: requested_size,
+        };
+
+        let response = download(Query(query)).await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("The download response body should be readable")
+            .to_bytes();
+
+        assert_eq!(body.len(), requested_size as usize);
+    }
+
+    #[test]
+    fn router_contains_upload_and_download_routes() {
+        let _router = create_router();
+    }
+}
