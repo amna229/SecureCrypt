@@ -1,0 +1,18 @@
+[package]
+name = "securecrypt-chat"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1.52.4", features = ["full"] }
+tonic = "0.14"
+prost = "0.14"
+tokio-stream = "0.1"
+secure_crypt = { path = "../secure_crypt" }
+tonic-prost = "0.14"
+http = "1.5.0"
+tower = "0.5.3"
+hyper-util = "0.1.20"
+
+[build-dependencies]
+tonic-prost-build = "0.14.6"
