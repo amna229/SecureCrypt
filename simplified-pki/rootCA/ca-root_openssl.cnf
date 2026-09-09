@@ -1,0 +1,61 @@
+[ca]
+default_ca = CA_default
+
+[CA_default]
+dir               = .
+certs             = $dir/certs
+database          = $dir/DB/fich_indice_db.txt
+new_certs_dir     = $dir/newcerts
+certificate       = $dir/rootCA.crt
+private_key       = $dir/private/rootCA.key
+serial            = $dir/DB/fich_num_serie_certificados.srl
+
+default_md        = sha256
+default_days      = 3650
+policy            = policy_strict
+
+email_in_dn       = no
+rand_serial       = no
+
+[policy_strict]
+countryName             = match
+stateOrProvinceName     = optional
+localityName            = optional
+organizationName        = match
+organizationalUnitName  = optional
+commonName              = supplied
+
+[req]
+default_bits        = 4096
+prompt              = no
+default_md          = sha256
+distinguished_name  = req_distinguished_name
+x509_extensions     = v3_ca
+
+[req_distinguished_name]
+countryName            = ES
+stateOrProvinceName    = Gipuzkoa
+localityName           = Donostia-San Sebastian
+organizationName       = SecureCrypt
+organizationalUnitName = Root CA
+commonName             = SecureCrypt Root CA
+
+[v3_ca]
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid:always,issuer
+basicConstraints       = critical, CA:true
+keyUsage               = critical, keyCertSign, cRLSign
+
+[server_ext]
+basicConstraints       = critical, CA:false
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid,issuer
+keyUsage               = critical, digitalSignature, keyEncipherment
+extendedKeyUsage       = serverAuth
+subjectAltName         = @server_alt_names
+
+[server_alt_names]
+DNS.1 = localhost
+IP.1  = 127.0.0.1
+DNS.2 = securecrypt-application
+DNS.3 = securecrypt-server
